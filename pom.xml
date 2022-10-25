@@ -706,7 +706,7 @@
             </activation>
             <properties>
                 <studio.ui.path>target/ui/</studio.ui.path>
-                <studio.ui.version>v4.0.2</studio.ui.version><!-- craftercms ui version flag -->
+                <studio.ui.version>master</studio.ui.version><!-- craftercms ui version flag -->
             </properties>
             <build>
                 <plugins>

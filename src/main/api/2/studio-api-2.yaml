@@ -4,7 +4,7 @@ servers:
 info:
   description: |-
     Crafter Studio API v2
-  version: '4.0.1.0'
+  version: '4.0.2.0'
   title: Crafter Studio
   termsOfService: ''
   contact:
@@ -14,7 +14,7 @@ info:
     url: 'https://www.gnu.org/licenses/gpl-3.0.en.html'
 externalDocs:
   description: CrafterCMS - Studio
-  url: 'https://docs.craftercms.org/en/3.1/developers/projects/studio/index.html'
+  url: 'https://docs.craftercms.org/current/developers/projects/studio/index.html'
 tags:
   - name: groups
     description: Group management operations
@@ -62,6 +62,8 @@ tags:
     description: Workflow operations
   - name: tasks
     description: tasks operations
+  - name: loggers
+    description: Logger configuration operations
 
 paths:
 
@@ -1692,7 +1694,7 @@ paths:
             type: string
         - name: type
           in: query
-          description: The type of items to list, defaults to all (possible values are 'image' and 'video')
+          description: The MIME-type of items to list, defaults to all
           required: false
           schema:
             type: string
@@ -1768,7 +1770,7 @@ paths:
       tags:
         - cluster
       summary: Get all the members of the cluster
-      description: 'Required Permission: "READ_CLUSTER"'
+      description: 'Required Permission: "read_cluster"'
       operationId: getClusterMembers
       responses:
         '200':
@@ -1784,41 +1786,6 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ClusterMember'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    delete:
-      tags:
-        - cluster
-      summary: Remove member(s) from the cluster
-      description: 'Required Permission: "DELETE_CLUSTER"'
-      operationId: removeClusterMembers
-      parameters:
-        - name: id
-          in: query
-          description: The cluster member ID(s). Can be repeated for multiple deletes (id=1&id=2&id=3)
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: Deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  result:
-                    type: object
-                    properties:
-                      response:
-                        $ref: '#/components/schemas/ApiResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3438,6 +3405,7 @@ paths:
       tags:
         - configuration
       summary: Get all usage of a given content-type
+      description: 'Required permission "content_read"'
       operationId: getContentTypeUsage
       parameters:
         - name: siteId
@@ -3486,11 +3454,59 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /configuration/content-type/preview_image:
+    get:
+      tags:
+        - configuration
+      summary: Get preview image of a given content type
+      description: 'Required permission "content_read"'
+      operationId: getContentTypePreviewImage
+      parameters:
+        - name: siteId
+          in: query
+          description: site ID
+          required: true
+          schema:
+            type: string
+        - name: contentTypeId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 'OK'
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+                description: The content of the preview image file
+          headers:
+            Content-Type:
+              description: The MIME type of the preview image file
+              schema:
+                type: string
+            Content-Length:
+              description: The size in bytes of the preview image file
+              schema:
+                type: integer
+                format: int64
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /configuration/content-type/delete:
     post:
       tags:
         - configuration
       summary: Delete files related to a given content-type
+      description: 'Required permission "write_configuration"'
       operationId: deleteContentType
       requestBody:
         content:
@@ -7293,6 +7309,67 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /loggers:
+    get:
+      tags:
+        - loggers
+      summary: Get all loggers and their configured priority levels
+      description: Required permission "view_log_levels or configure_log_levels"
+      operationId: loggersGetAll
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    $ref: '#/components/schemas/ApiResponse'
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LoggerConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /loggers/logger_level:
+    post:
+      tags:
+        - loggers
+      summary: Update logger priority level
+      description: Required permission "configure_log_levels"
+      operationId: loggersUpdateLevel
+      requestBody:
+        description: parameters to update the logger level
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoggerConfigRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    $ref: '#/components/schemas/ApiResponse'
+                  result:
+                    $ref: '#/components/schemas/LoggerConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
   schemas:
@@ -7344,6 +7421,7 @@ components:
           * `CODE:` 50003, `MESSAGE:` Target path does not exist in site repository, `REMEDIAL ACTION:` Check if you sent in the right Studio Path
           * `CODE:` 51000, `MESSAGE:` Box is unreachable, `REMEDIAL ACTION:` Advise the user that Box is not reachable
           * `CODE:` 52000, `MESSAGE:` AWS is unreachable, `REMEDIAL ACTION:` Advise the user that AWS engine is not reachable
+          * `CODE:` 53000, `MESSAGE:` Logger not found, `REMEDIAL ACTION:` Check if you sent in the right logger name or add 'createIfAbsent=true' parameter to create the logger if it does not exist
       properties:
         code:
           type: integer
@@ -7544,49 +7622,30 @@ components:
     ClusterMember:
       type: object
       properties:
-        id:
-          type: integer
-          format: int64
-          description: 'Cluster Member ID, unique and immutable'
+        primary:
+          type: boolean
+          description: 'True for primary node, false for replicas'
         localAddress:
           type: string
           description: 'Cluster Member local IP address, immutable'
         state:
           type: string
           description: 'Cluster Member state'
-        heartbeat:
-          type: string
-          format: date-time
-          description: 'Timestamp of last heartbeat update of cluster member'
+          enum:
+            - ACTIVE
+            - INACTIVE
         gitUrl:
           type: string
           description: 'Git URL, unique'
         gitRemoteName:
           type: string
           description: 'Git Remote Name, unique'
-        gitAuthType:
-          type: string
-          description: 'Git Auth Type'
-        gitUsername:
-          type: string
-          description: 'Git Username'
-        gitPassword:
-          type: string
-          description: 'Git Password (not returned to caller)'
-        gitToken:
-          type: string
-          description: 'Git Token (not returned to caller)'
-        gitPrivateKey:
-          type: string
-          description: 'Git Private Key (not returned to caller)'
       required:
-        - id
         - localAddress
         - state
-        - heartbeat
         - gitUrl
         - gitRemoteName
-        - gitAuthType
+        - primary
 
     Version:
       type: object
@@ -9185,6 +9244,27 @@ components:
         - numberOfNewAndPublishedItems
         - numberOfEditedAndPublishedItems
 
+    LoggerConfig:
+      type: object
+      properties:
+        name:
+          type: string
+          description: the logger name
+        level:
+          type: string
+          description: the logger priority level (off|error|warn|info|debug|trace|all)
+      required:
+        - name
+        - level
+    LoggerConfigRequest:
+      allOf:
+        - $ref: '#/components/schemas/LoggerConfig'
+        - type: object
+          properties:
+            createIfAbsent:
+              type: boolean
+              description: if true, the logger will be created in case it does not exist yet.
+                If false, a 404 status code will be returned if logger is not in the registry.
   responses:
     NotFound:
       description: Resource not found

@@ -24,8 +24,8 @@ import org.craftercms.studio.api.v1.dal.DependencyMapper;
 import org.craftercms.studio.api.v1.exception.ContentNotFoundException;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
-import org.craftercms.studio.api.v1.log.Logger;
-import org.craftercms.studio.api.v1.log.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.craftercms.studio.api.v1.repository.ContentRepository;
 import org.craftercms.studio.api.v1.repository.RepositoryItem;
 import org.craftercms.studio.api.v1.service.GeneralLockService;
@@ -81,43 +81,44 @@ public class DependencyServiceImpl implements DependencyService {
     protected PlatformTransactionManager transactionManager;
     protected ContentRepository contentRepository;
     protected ServicesConfig servicesConfig;
-    protected org.craftercms.studio.api.v2.service.dependency.DependencyService dependencyService;
+    protected org.craftercms.studio.api.v2.service.dependency.internal.DependencyServiceInternal dependencyService;
     protected ItemDAO itemDao;
     protected GeneralLockService generalLockService;
     protected RetryingDatabaseOperationFacade retryingDatabaseOperationFacade;
 
     @Override
     public Set<String> upsertDependencies(String site, String path)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
-        Set<String> toRet = new HashSet<String>();
-        logger.debug("Resolving dependencies for content site: " + site + " path: " + path);
+            throws ServiceLayerException {
+        Set<String> toRet = new HashSet<>();
+        logger.debug("Resolve dependencies for content in site '{}' path '{}'", site, path);
         Map<String, Set<String>> dependencies = dependencyResolver.resolve(site, path);
         List<DependencyEntity> dependencyEntities = new ArrayList<>();
         if (dependencies != null) {
-            logger.debug("Found " + dependencies.size() + " dependencies. Create entities to insert into database.");
+            logger.debug("Found '{}' dependencies for site '{}' path '{}'", dependencies.size(), site, path);
             for (String type : dependencies.keySet()) {
                 dependencyEntities.addAll(createDependencyEntities(site, path, dependencies.get(type), type, toRet));
             }
 
-            logger.debug("Preparing transaction for database updates.");
+            logger.trace("Prepare the transaction for dependencies insertion for site '{}' path '{}'", site, path);
             DefaultTransactionDefinition defaultTransactionDefinition = new DefaultTransactionDefinition();
             defaultTransactionDefinition.setName("upsertDependencies");
             String lock = site + ":upsertDependencies";
             generalLockService.lock(lock);
-            logger.debug("Starting transaction.");
+            logger.trace("Start transaction to insert dependencies for site '{}' path '{}'", site, path);
             TransactionStatus txStatus = transactionManager.getTransaction(defaultTransactionDefinition);
 
             try {
-                logger.debug("Delete all source dependencies for site: " + site + " path: " + path);
+                logger.debug("Delete all source dependencies for site '{}' path '{}'", site, path);
                 deleteAllSourceDependencies(site, path);
-                logger.debug("Insert all extracted dependencies entries for site: " + site + " path: " + path);
+                logger.debug("Insert all extracted dependencies for site '{}' path '{}'", site, path);
                 insertDependenciesIntoDatabase(dependencyEntities);
-                logger.debug("Committing transaction.");
+                logger.trace("Commit transaction to insert dependencies for site '{}' path '{}'", site, path);
                 transactionManager.commit(txStatus);
             } catch (Exception e) {
-                logger.debug("Rolling back transaction.", e);
+                logger.error("Failed to insert dependencies for site '{}' path '{}'", site, path, e);
                 transactionManager.rollback(txStatus);
-                throw new ServiceLayerException("Failed to upsert dependencies for site: " + site + " path: " + path, e);
+                throw new ServiceLayerException(format("Failed to upsert dependencies for site '%s' path '%s'",
+                        site, path), e);
             } finally {
                 generalLockService.unlock(lock);
             }
@@ -128,44 +129,44 @@ public class DependencyServiceImpl implements DependencyService {
 
     @Override
     public Set<String> upsertDependencies(String site, List<String> paths)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
-        Set<String> toRet = new HashSet<String>();
+            throws ServiceLayerException {
+        Set<String> toRet = new HashSet<>();
         List<DependencyEntity> dependencyEntities = new ArrayList<>();
         StringBuilder sbPaths = new StringBuilder();
-        logger.debug("Resolving dependencies for list of paths.");
+        logger.debug("Resolve dependencies in site '{}'", site);
         for (String path : paths) {
             sbPaths.append("\n").append(path);
-            logger.debug("Resolving dependencies for content site: " + site + " path: " + path);
+            logger.debug("Resolve dependencies in site '{}' for path '{}'", site, path);
             Map<String, Set<String>> dependencies = dependencyResolver.resolve(site, path);
             if (dependencies != null) {
-                logger.debug("Found " + dependencies.size() + " dependencies. " +
-                        "Create entities to insert into database.");
+                logger.debug("Found '{}' dependencies for site '{}' path '{}'", dependencies.size(), site, path);
                 for (String type : dependencies.keySet()) {
                     dependencyEntities.addAll(createDependencyEntities(site, path, dependencies.get(type), type, toRet));
                 }
             }
         }
-        logger.debug("Preparing transaction for database updates.");
+        // Prepare transaction for database updates
         DefaultTransactionDefinition defaultTransactionDefinition = new DefaultTransactionDefinition();
         defaultTransactionDefinition.setName("upsertDependencies");
         String lock = site + ":upsertDependencies";
         generalLockService.lock(lock);
-        logger.debug("Starting transaction.");
+        logger.debug("Start transaction to insert dependencies in site '{}'", site);
         TransactionStatus txStatus = transactionManager.getTransaction(defaultTransactionDefinition);
         try {
-            logger.debug("Delete all source dependencies for list of paths site: " + site);
+            logger.debug("Delete all source dependencies in site '{}' paths '{}'", site, paths);
+            // TODO: SJ: This should be a bulk operation
             for (String path : paths) {
                 deleteAllSourceDependencies(site, path);
             }
-            logger.debug("Insert all extracted dependencies entries lof list of paths for site: " + site);
+            logger.debug("Insert all extracted dependency entries in site '{}' paths '{}'", site, paths);
             insertDependenciesIntoDatabase(dependencyEntities);
-            logger.debug("Committing transaction.");
+            logger.debug("Commit the dependency update transaction in site '{}'", site);
             transactionManager.commit(txStatus);
         } catch (Exception e) {
-            logger.debug("Rolling back transaction.", e);
+            logger.error("Failed to update dependencies in site '{}' paths '{}'", site, sbPaths, e);
             transactionManager.rollback(txStatus);
-            throw new ServiceLayerException("Failed to upsert dependencies for site: " + site + " paths: " +
-                    sbPaths.toString(), e);
+            throw new ServiceLayerException(format("Failed update dependencies in site '%s' paths '%s'",
+                    site, sbPaths), e);
         } finally {
             generalLockService.unlock(lock);
         }
@@ -173,16 +174,16 @@ public class DependencyServiceImpl implements DependencyService {
     }
 
     public void deleteAllSourceDependencies(String site, String path) {
-        logger.debug("Delete all source dependencies for site: " + site + " path: " + path);
-        Map<String, String> params = new HashMap<String, String>();
+        logger.debug("Delete all source dependencies in site '{}' path '{}'", site, path);
+        Map<String, String> params = new HashMap<>();
         params.put(SITE_PARAM, site);
         params.put(PATH_PARAM, path);
-        retryingDatabaseOperationFacade.deleteAllSourceDependencies(params);
+        retryingDatabaseOperationFacade.retry(() -> dependencyMapper.deleteAllSourceDependencies(params));
     }
 
     public List<DependencyEntity> createDependencyEntities(String site, String path, Set<String> dependencyPaths,
                                                             String dependencyType, Set<String> extractedPaths) {
-        logger.debug("Create dependency entity TO for site: " + site + " path: " + path);
+        logger.debug("Create the dependency entity in site '{}' path '{}'", site, path);
         List<DependencyEntity> dependencyEntities = new ArrayList<>();
         if (dependencyPaths != null && dependencyPaths.size() > 0) {
             for (String file : dependencyPaths) {
@@ -203,19 +204,19 @@ public class DependencyServiceImpl implements DependencyService {
     }
 
     public void insertDependenciesIntoDatabase(List<DependencyEntity> dependencyEntities) {
-        logger.debug("Insert list of dependency entities into database");
+        logger.debug("Insert the dependency entities into database");
         if (CollectionUtils.isNotEmpty(dependencyEntities)) {
             Map<String, Object> params = new HashMap<>();
             params.put(StudioConstants.JSON_PROPERTY_DEPENDENCIES, dependencyEntities);
-            retryingDatabaseOperationFacade.insertDependenciesList(params);
+            retryingDatabaseOperationFacade.retry(() -> dependencyMapper.insertList(params));
         }
     }
 
     @Override
     public List<String> getPublishingDependencies(String site, String path)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
-        logger.debug("Get publishing dependencies for site: " + site + " path:" + path);
-        List<String> paths = new ArrayList<String>();
+            throws ServiceLayerException {
+        logger.debug("Get publishing dependencies for site '{}' path '{}'", site, path);
+        List<String> paths = new ArrayList<>();
         paths.add(path);
         return getPublishingDependencies(site, paths);
     }
@@ -228,7 +229,7 @@ public class DependencyServiceImpl implements DependencyService {
 
     @Override
     public Set<String> getItemSpecificDependencies(String site, String path, int depth)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
+            throws ServiceLayerException {
         // Check if site exists
         if (!siteService.exists(site)) {
             throw new SiteNotFoundException();
@@ -239,8 +240,8 @@ public class DependencyServiceImpl implements DependencyService {
             throw new ContentNotFoundException();
         }
 
-        Set<String> toRet = new HashSet<String>();
-        Set<String> paths = new HashSet<String>();
+        Set<String> toRet = new HashSet<>();
+        Set<String> paths = new HashSet<>();
         boolean exitCondition = false;
         paths.add(path);
         if (depth < 0) {
@@ -265,9 +266,9 @@ public class DependencyServiceImpl implements DependencyService {
 
     private List<String> getItemSpecificDependenciesFromDB(String site, Set<String> paths) {
         if (CollectionUtils.isEmpty(paths)) {
-            return new ArrayList<String>();
+            return new ArrayList<>();
         }
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put(SITE_PARAM, site);
         params.put(PATHS_PARAM, paths);
         params.put(REGEX_PARAM, getItemSpecificDependenciesPatterns());
@@ -276,7 +277,7 @@ public class DependencyServiceImpl implements DependencyService {
 
     @Override
     public Set<String> getItemDependencies(String site, String path, int depth)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
+            throws ServiceLayerException {
         // Check if site exists
         if (!siteService.exists(site)) {
             throw new SiteNotFoundException();
@@ -287,10 +288,10 @@ public class DependencyServiceImpl implements DependencyService {
             throw new ContentNotFoundException();
         }
 
-        logger.debug("Get dependency items for content " + path + " for site " + site);
+        logger.debug("Get item dependencies for site '{}' path '{}'", site, path);
 
-        Set<String> toRet = new HashSet<String>();
-        Set<String> paths = new HashSet<String>();
+        Set<String> toRet = new HashSet<>();
+        Set<String> paths = new HashSet<>();
         paths.add(path);
         boolean exitCondition;
         if (depth < 0) {
@@ -313,9 +314,9 @@ public class DependencyServiceImpl implements DependencyService {
 
     private List<String> getItemDependenciesFromDB(String site, Set<String> paths) {
         if (CollectionUtils.isEmpty(paths)) {
-            return new ArrayList<String>();
+            return new ArrayList<>();
         }
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put(SITE_PARAM, site);
         params.put(PATHS_PARAM, paths);
         return dependencyMapper.getDependenciesForList(params);
@@ -323,7 +324,7 @@ public class DependencyServiceImpl implements DependencyService {
 
     @Override
     public Set<String> getItemsDependingOn(String site, String path, int depth)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
+            throws ServiceLayerException {
         // Check if site exists
         if (!siteService.exists(site)) {
             throw new SiteNotFoundException();
@@ -334,9 +335,9 @@ public class DependencyServiceImpl implements DependencyService {
             throw new ContentNotFoundException();
         }
 
-        logger.debug("Get items depending on content " + path + " for site " + site);
-        Set<String> toRet = new HashSet<String>();
-        Set<String> paths = new HashSet<String>();
+        logger.debug("Get items depending on item site '{}' path '{}'", site, path);
+        Set<String> toRet = new HashSet<>();
+        Set<String> paths = new HashSet<>();
         paths.add(path);
         if (depth < 0) {
             do {
@@ -360,9 +361,9 @@ public class DependencyServiceImpl implements DependencyService {
 
     private List<String> getItemsDependingOnFromDB(String site, Set<String> paths) {
         if (CollectionUtils.isEmpty(paths)) {
-            return new ArrayList<String>();
+            return new ArrayList<>();
         }
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put(SITE_PARAM, site);
         params.put(PATHS_PARAM, paths);
         return dependencyMapper.getItemsDependingOn(params);
@@ -370,7 +371,7 @@ public class DependencyServiceImpl implements DependencyService {
 
     @Override
     public Set<String> moveDependencies(String site, String oldPath, String newPath)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
+            throws ServiceLayerException {
         // Check if site exists
         if (!siteService.exists(site)) {
             throw new SiteNotFoundException();
@@ -381,40 +382,40 @@ public class DependencyServiceImpl implements DependencyService {
             throw new ContentNotFoundException();
         }
 
-        Map<String, String> params = new HashMap<String, String>();
+        Map<String, String> params = new HashMap<>();
         params.put(SITE_ID_PARAM, site);
         params.put(OLD_PATH_PARAM, oldPath);
         params.put(NEW_PATH_PARAM, newPath);
-        retryingDatabaseOperationFacade.moveDependency(params);
+        retryingDatabaseOperationFacade.retry(() -> dependencyMapper.moveDependency(params));
 
         return getItemDependencies(site, newPath, 1);
     }
 
     @Override
     public void deleteItemDependencies(String site, String path)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
+            throws ServiceLayerException {
         if (!siteService.exists(site)) {
             throw new SiteNotFoundException();
         }
 
-        logger.debug("Delete dependencies for content site: " + site + " path: " + path);
-        Map<String, String> params = new HashMap<String, String>();
+        logger.debug("Delete dependencies for item site '{}' path '{}'", site, path);
+        Map<String, String> params = new HashMap<>();
         params.put(SITE_PARAM, site);
         params.put(PATH_PARAM, path);
-        retryingDatabaseOperationFacade.deleteDependenciesForSiteAndPath(params);
+        retryingDatabaseOperationFacade.retry(() -> dependencyMapper.deleteDependenciesForSiteAndPath(params));
     }
 
     @Override
     public void deleteSiteDependencies(String site) throws ServiceLayerException {
-        logger.debug("Delete all dependencies for site: " + site);
-        Map<String, String> params = new HashMap<String, String>();
+        logger.debug("Delete all dependencies in site '{}'", site);
+        Map<String, String> params = new HashMap<>();
         params.put(SITE_PARAM, site);
-        retryingDatabaseOperationFacade.deleteDependenciesForSite(params);
+        retryingDatabaseOperationFacade.retry(() -> dependencyMapper.deleteDependenciesForSite(params));
     }
 
     @Override
     public Set<String> getDeleteDependencies(String site, String path)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
+            throws ServiceLayerException {
         // Check if site exists
         if (!siteService.exists(site)) {
             throw new SiteNotFoundException(format("Site '%s' not found", site));
@@ -422,19 +423,20 @@ public class DependencyServiceImpl implements DependencyService {
 
         // Check if content exists
         if (!contentService.contentExists(site, path)) {
-            throw new ContentNotFoundException(path, site, format("Content not found in site '%s' at path '%s'", site, path));
+            throw new ContentNotFoundException(path, site, format("Content not found in site '%s' at path '%s'",
+                    site, path));
         }
 
-        logger.debug("Get delete dependencies for content - site " + site + " path " + path);
-        List<String> paths = new ArrayList<String>();
+        logger.debug("Get delete dependencies for site '{}' path '{}'", site, path);
+        List<String> paths = new ArrayList<>();
         paths.add(path);
-        Set<String> processedPaths = new HashSet<String>();
+        Set<String> processedPaths = new HashSet<>();
         return getDeleteDependenciesInternal(site, paths, processedPaths);
     }
 
     @Override
     public Set<String> getDeleteDependencies(String site, List<String> paths)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
+            throws ServiceLayerException {
         // Check if site exists
         if (!siteService.exists(site)) {
             throw new SiteNotFoundException(format("Site '%s' not found", site));
@@ -443,53 +445,53 @@ public class DependencyServiceImpl implements DependencyService {
         for (String path : paths) {
             // Check if content exists
             if (!contentService.contentExists(site, path)) {
-                throw new ContentNotFoundException(path, site, format("Content not found in site '%s' at path '%s'", site, path));
+                throw new ContentNotFoundException(path, site, format("Content not found in site '%s' at path '%s'",
+                        site, path));
             }
             sbPaths.append("\n").append(path);
         }
 
-        logger.debug("Gete delete dependencies for content - site: " + site + " paths: " + sbPaths.toString());
-        Set<String> processedPaths = new HashSet<String>();
+        logger.debug("Get delete dependencies in site '{}' paths '{}'", site, sbPaths);
+        Set<String> processedPaths = new HashSet<>();
         return getDeleteDependenciesInternal(site, paths, processedPaths);
     }
 
     private Set<String> getDeleteDependenciesInternal(String site, List<String> paths, Set<String> processedPaths) {
-        Set<String> toRet = new HashSet<String>();
         // Step 1: collect all content from subtree
-        logger.debug("Get all children from subtree");
+        logger.debug("Get all the children from the subtree in site '{}' paths '{}'", site, paths);
         Set<String> children = getAllChildrenRecursively(site, paths);
-        toRet.addAll(children);
+        Set<String> toRet = new HashSet<>(children);
 
         // Step 2: collect all dependencies from DB
-        logger.debug("Get dependencies from DB for all paths in subtree(s) and filter them by item specific" +
-                " and content type");
-        Set<String> depsSource = new HashSet<String>();
+        logger.debug("Get the dependencies from the database for all the paths in the subtree(s) and filter them " +
+                "by item specificity and content type in site '{}'", site);
+        Set<String> depsSource = new HashSet<>();
         depsSource.addAll(paths);
         depsSource.addAll(children);
         Set<String> dependencies = getContentTypeFilteredDeleteDependencies(site, depsSource);
         toRet.addAll(dependencies);
         List<String> itemSpecificcDeps = getItemSpecificDependenciesFromDB(site, depsSource);
         toRet.addAll(itemSpecificcDeps);
-        boolean doItAgain = false;
 
         // Step 3: recursion
-        logger.debug("Repeat process for newly collected dependencies that have not been processed yet");
-        doItAgain = doItAgain || processedPaths.addAll(children);
+        logger.debug("Repeat the process for newly collected dependencies that have not been processed yet in site" +
+                "'{}'", site);
+        boolean doItAgain = processedPaths.addAll(children);
         doItAgain = doItAgain || processedPaths.addAll(dependencies);
         doItAgain = doItAgain || processedPaths.addAll(itemSpecificcDeps);
         if (doItAgain) {
-            List<String> pathsToProcess = new ArrayList<String>();
+            List<String> pathsToProcess = new ArrayList<>();
             pathsToProcess.addAll(children);
             pathsToProcess.addAll(dependencies);
             toRet.addAll(getDeleteDependenciesInternal(site, pathsToProcess, processedPaths));
         }
 
-        logger.debug("Return collected set of dependencies");
+        logger.debug("Return the collected set of dependencies in site '{}'", site);
         return toRet;
     }
 
     private Set<String> getContentTypeFilteredDeleteDependencies(String site, Set<String> paths) {
-        Set<String> toRet = new HashSet<String>();
+        Set<String> toRet = new HashSet<>();
         List<String> deps = getItemDependenciesFromDB(site, paths);
         for (String dep : deps) {
             ContentItemTO item = contentService.getContentItem(site, dep, 0);
@@ -509,19 +511,19 @@ public class DependencyServiceImpl implements DependencyService {
     }
 
     private Set<String> getAllChildrenRecursively(String site, List<String> paths) {
-        logger.debug("Get all content from subtree(s) for list of pats");
-        Set<String> toRet = new HashSet<String>();
+        logger.debug("Get all the items from the subtree(s) in site '{}' paths '{}'", site, paths);
+        Set<String> toRet = new HashSet<>();
 
         for (String path : paths) {
-            logger.debug("Get children from repository for content at site " + site + " path " + path);
+            logger.debug("Get the children from the repository for site '{}' path '{}'", site, path);
             RepositoryItem[] children = contentRepository.getContentChildren(site, path);
             if (children != null) {
-                List<String> childrenPaths = new ArrayList<String>();
+                List<String> childrenPaths = new ArrayList<>();
                 for (RepositoryItem child : children) {
                     String childPath = child.path + "/" + child.name;
                     childrenPaths.add(childPath);
                 }
-                logger.debug("Adding all collected children paths");
+                logger.debug("Add all the collected children paths in site '{}'", site);
                 toRet.addAll(childrenPaths);
                 toRet.addAll(getAllChildrenRecursively(site, childrenPaths));
             }
@@ -532,7 +534,7 @@ public class DependencyServiceImpl implements DependencyService {
     protected List<String> getItemSpecificDependenciesPatterns() {
         StringTokenizer st = new StringTokenizer(
                 studioConfiguration.getProperty(CONFIGURATION_DEPENDENCY_ITEM_SPECIFIC_PATTERNS), ",");
-        List<String> itemSpecificDependenciesPatterns = new ArrayList<String>(st.countTokens());
+        List<String> itemSpecificDependenciesPatterns = new ArrayList<>(st.countTokens());
         while (st.hasMoreTokens()) {
             itemSpecificDependenciesPatterns.add(st.nextToken().trim());
         }
@@ -543,17 +545,17 @@ public class DependencyServiceImpl implements DependencyService {
     public Map<String, List<CalculateDependenciesEntityTO>> calculateDependencies(String site, List<String> paths)
             throws ServiceLayerException {
         Map<String, List<CalculateDependenciesEntityTO>> toRet =
-                new HashMap<String, List<CalculateDependenciesEntityTO>>();
-        List<CalculateDependenciesEntityTO> entities = new ArrayList<CalculateDependenciesEntityTO>();
+                new HashMap<>();
+        List<CalculateDependenciesEntityTO> entities = new ArrayList<>();
             Map<String, String> deps = calculatePublishingDependencies(site, paths);
-            Map<String, List<Map<String, String>>> temp = new HashMap<String, List<Map<String,String>>>();
+            Map<String, List<Map<String, String>>> temp = new HashMap<>();
             for (String p : paths) {
-                temp.put(p, new ArrayList<Map<String, String>>());
+                temp.put(p, new ArrayList<>());
             }
             for (Map.Entry<String, String> d : deps.entrySet()) {
                 if (d.getKey() != d.getValue()) {
                     List<Map<String, String>> ds = temp.get(d.getValue());
-                    ds.add(new HashMap<String, String>() {{
+                    ds.add(new HashMap<>() {{
                         put(StudioConstants.JSON_PROPERTY_ITEM, d.getKey());
                     }});
                 }
@@ -576,15 +578,13 @@ public class DependencyServiceImpl implements DependencyService {
     }
 
     private Map<String, String> calculatePublishingDependencies(String site, List<String> paths)
-            throws SiteNotFoundException, ContentNotFoundException, ServiceLayerException {
-        Set<String> toRet = new HashSet<String>();
-        Set<String> pathsParams = new HashSet<String>();
+            throws ServiceLayerException {
+        Set<String> toRet = new HashSet<>();
 
-        logger.debug("Get all publishing dependencies");
-        pathsParams.addAll(paths);
+        logger.debug("Get all the publishing dependencies for site '{}' paths '{}'", site, paths);
+        Set<String> pathsParams = new HashSet<>(paths);
         Set<String> mandatoryParents = getMandatoryParentsForPublishing(site, paths);
-        boolean exitCondition = false;
-        Map<String, String> ancestors = new HashMap<String, String>();
+        Map<String, String> ancestors = new HashMap<>();
         for (String p : paths) {
             ancestors.put(p, p);
         }
@@ -597,13 +597,14 @@ public class DependencyServiceImpl implements DependencyService {
                 }
             }
         }
+        boolean exitCondition = false;
         do {
             List<Map<String, String>> deps = calculatePublishingDependenciesForListFromDB(site, pathsParams);
-            List<String> targetPaths = new ArrayList<String>();
+            List<String> targetPaths = new ArrayList<>();
             for (Map<String, String> d : deps) {
                 String srcPath = d.get(SORUCE_PATH_COLUMN_NAME);
                 String targetPath = d.get(TARGET_PATH_COLUMN_NAME);
-                if (!ancestors.keySet().contains(targetPath)) {
+                if (!ancestors.containsKey(targetPath)) {
                     if (!StringUtils.equals(targetPath, ancestors.get(srcPath))) {
                         ancestors.put(targetPath, ancestors.get(srcPath));
                     }
@@ -619,11 +620,10 @@ public class DependencyServiceImpl implements DependencyService {
     }
 
     private Set<String> getMandatoryParentsForPublishing(String site, List<String> paths) {
-        Set<String> toRet = new HashSet<String>();
+        Set<String> toRet = new HashSet<>();
         Set<String> possibleParents = calculatePossibleParents(paths);
         if (!possibleParents.isEmpty()) {
-            List<String> pp = new ArrayList<>();
-            pp.addAll(possibleParents);
+            List<String> pp = new ArrayList<>(possibleParents);
             List<String> result = itemDao.getMandatoryParentsForPublishing(site, pp, ItemState.NEW_MASK,
                     ItemState.MODIFIED_MASK);
             toRet.addAll(result);
@@ -632,7 +632,7 @@ public class DependencyServiceImpl implements DependencyService {
     }
 
     private Set<String> calculatePossibleParents(List<String> paths) {
-        Set<String> possibleParents = new HashSet<String>();
+        Set<String> possibleParents = new HashSet<>();
         for (String path : paths) {
             StringTokenizer stPath = new StringTokenizer(path.replace(FILE_SEPARATOR + INDEX_FILE, ""), FILE_SEPARATOR);
             StringBuilder candidate = new StringBuilder(FILE_SEPARATOR);
@@ -650,7 +650,7 @@ public class DependencyServiceImpl implements DependencyService {
     }
 
     private List<Map<String, String>> calculatePublishingDependenciesForListFromDB(String site, Set<String> paths) {
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put(SITE_PARAM, site);
         params.put(PATHS_PARAM, paths);
         params.put(REGEX_PARAM, getItemSpecificDependenciesPatterns());
@@ -723,11 +723,11 @@ public class DependencyServiceImpl implements DependencyService {
         this.dependencyMapper = dependencyMapper;
     }
 
-    public org.craftercms.studio.api.v2.service.dependency.DependencyService getDependencyService() {
+    public org.craftercms.studio.api.v2.service.dependency.internal.DependencyServiceInternal getDependencyService() {
         return dependencyService;
     }
 
-    public void setDependencyService(org.craftercms.studio.api.v2.service.dependency.DependencyService dependencyService) {
+    public void setDependencyService(org.craftercms.studio.api.v2.service.dependency.internal.DependencyServiceInternal dependencyService) {
         this.dependencyService = dependencyService;
     }
 

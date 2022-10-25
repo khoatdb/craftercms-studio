@@ -347,6 +347,7 @@
                 <permission>get_children</permission>
                 <permission>publish_status</permission>
                 <permission>item_unlock</permission>
+                <permission>start_stop_publisher</permission>
             </allowed-permissions>
         </rule>
     </role>

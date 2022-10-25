@@ -15,11 +15,9 @@
  */
 package org.craftercms.studio.impl.v2.service.policy.internal;
 
-import org.apache.commons.configuration2.HierarchicalConfiguration;
 import org.apache.commons.configuration2.XMLConfiguration;
 import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.apache.commons.configuration2.io.FileHandler;
-import org.apache.commons.configuration2.tree.ImmutableNode;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.craftercms.studio.api.v1.exception.ContentNotFoundException;
@@ -27,16 +25,12 @@ import org.craftercms.studio.api.v1.repository.ContentRepository;
 import org.craftercms.studio.api.v1.repository.RepositoryItem;
 import org.craftercms.studio.api.v2.exception.configuration.ConfigurationException;
 import org.craftercms.studio.api.v2.service.config.ConfigurationService;
-import org.craftercms.studio.impl.v1.log.l4j.L4jLogProvider;
-import org.craftercms.studio.impl.v2.service.policy.validators.ContentTypePolicyValidator;
-import org.craftercms.studio.impl.v2.service.policy.validators.FileSizePolicyValidator;
-import org.craftercms.studio.impl.v2.service.policy.validators.MimeTypePolicyValidator;
-import org.craftercms.studio.impl.v2.service.policy.validators.PathPolicyValidator;
-import org.craftercms.studio.impl.v2.service.policy.validators.SystemPolicyValidator;
+import org.craftercms.studio.impl.v2.service.policy.validators.*;
 import org.craftercms.studio.model.policy.Action;
 import org.craftercms.studio.model.policy.Type;
 import org.craftercms.studio.model.policy.ValidationResult;
 import org.mockito.Mock;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.testng.annotations.BeforeClass;
@@ -51,10 +45,7 @@ import static org.craftercms.studio.model.policy.Action.METADATA_CONTENT_TYPE;
 import static org.craftercms.studio.model.policy.Action.METADATA_FILE_SIZE;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertNull;
-import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.*;
 
 /**
  * @author joseross
@@ -66,6 +57,8 @@ public class PolicyServiceInternalImplTest {
     public static final Resource CONFIG = new ClassPathResource("crafter/studio/config/policy.xml");
 
     public static final String CONFIG_PATH = "/studio/config/policy-config.xml";
+
+    public static final String STATIC_ASSETS = "/static-assets";
 
     public static final String DOC1_FILENAME = "doc1.pdf";
     public static final String DOC2_FILENAME = "doc2.pdf";
@@ -105,8 +98,7 @@ public class PolicyServiceInternalImplTest {
 
     @BeforeClass
     public static void setUpLogger() {
-        var provider = new L4jLogProvider();
-        provider.init();
+        var provider = LoggerFactory.getLogger(PolicyServiceInternalImplTest.class);
     }
 
     @BeforeMethod
@@ -195,6 +187,10 @@ public class PolicyServiceInternalImplTest {
             item.name = SUB_FOLDER_NAME;
 
             return new RepositoryItem[] { item };
+        });
+
+        when(contentRepository.contentExists(SITE_ID, STATIC_ASSETS)).thenAnswer(i -> {
+            return true;
         });
 
         when(contentRepositoryV2.getContentSize(SITE_ID, concat(DOCS_FOLDER_PATH, SUB_FOLDER_NAME, DOC1_FILENAME)))
@@ -360,8 +356,12 @@ public class PolicyServiceInternalImplTest {
         action.setType(Type.CREATE);
         action.setTarget(REMOVE_PATH_RESTRICTED_FOLDER);
 
+        when(contentRepository.contentExists(SITE_ID, REMOVE_PATH_RESTRICTED_FOLDER)).thenAnswer(i -> {
+            return false;
+        });
+
         var results= policyService.validate(SITE_ID, List.of(action));
-        checkSingleResultNotModified(results);
+        checkSingleResult(results, true);
     }
 
     @Test
@@ -425,27 +425,23 @@ public class PolicyServiceInternalImplTest {
     }
 
     @Test
-    public void recursiveSimplePathTest() throws ConfigurationException, IOException, ContentNotFoundException {
-        var action = new Action();
-        action.setType(Type.COPY);
-        action.setSource(DOCS_FOLDER_PATH);
-        action.setTarget("/static-assets/no-numbers");
-        action.setRecursive(true);
-
-        var results= policyService.validate(SITE_ID, List.of(action));
-        checkMultipleResults(results, false);
-
-        action.setSource("/static-assets/pics");
-
-        results= policyService.validate(SITE_ID, List.of(action));
-        checkSingleResult(results, true);
-    }
-
-    @Test
     public void multipleTransformationTest() throws ConfigurationException {
         Action action = new Action();
         action.setType(Type.CREATE);
         action.setTarget("/static-assets/test/paren(thesis)in_name.png");
+
+        when(contentRepository.contentExists(SITE_ID, "/static-assets/test")).thenAnswer(i -> {
+            return true;
+        });
+
+        when(contentRepository.contentExists(SITE_ID, "/static-assets/test/paren(thesis)in_name.png")).thenAnswer(i -> {
+            return false;
+        });
+
+        when(contentRepository.contentExists(SITE_ID, "/static-assets/test/paren(thesis)in-name.png")).thenAnswer(i -> {
+            return false;
+        });
+
         List<ValidationResult> results = policyService.validate(SITE_ID, List.of(action));
         checkSingleResult(results, true, "/static-assets/test/paren-thesis-in-name.png");
     }

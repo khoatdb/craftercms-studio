@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 /**
@@ -38,9 +39,10 @@ public class EventBroadcaster {
     @Autowired
     protected SimpMessagingTemplate messagingTemplate;
 
+    @Order
     @EventListener
     public void publishEvent(BroadcastEvent event) {
-        logger.debug("Broadcasting event {}", event);
+        logger.debug("Broadcast event '{}'", event);
         long startTime = System.currentTimeMillis();
         String destination = DESTINATION_ROOT;
         if (event instanceof SiteAwareEvent) {
@@ -49,7 +51,7 @@ public class EventBroadcaster {
         messagingTemplate.convertAndSend(destination, event);
         if (logger.isTraceEnabled()) {
             long total = System.currentTimeMillis() - startTime;
-            logger.trace("Broadcast of event {} took {} ms", event, total);
+            logger.trace("Broadcast of event '{}' took '{}' milliseconds", event, total);
         }
     }
 

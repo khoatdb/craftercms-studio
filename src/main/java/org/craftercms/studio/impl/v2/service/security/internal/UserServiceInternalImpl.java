@@ -21,8 +21,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.craftercms.commons.crypto.CryptoUtils;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.security.*;
-import org.craftercms.studio.api.v1.log.Logger;
-import org.craftercms.studio.api.v1.log.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.craftercms.studio.api.v1.service.security.SecurityService;
 import org.craftercms.studio.api.v1.service.site.SiteService;
 import org.craftercms.studio.api.v2.dal.Group;
@@ -207,7 +207,7 @@ public class UserServiceInternalImpl implements UserServiceInternal {
             params.put(ENABLED, user.getEnabledAsInt());
 
             try {
-                retryingDatabaseOperationFacade.createUser(params);
+                retryingDatabaseOperationFacade.retry(() -> userDao.createUser(params));
 
                 user.setId((Long) params.get(ID));
 
@@ -250,7 +250,7 @@ public class UserServiceInternalImpl implements UserServiceInternal {
         params.put(LOCALE, StringUtils.EMPTY);
 
         try {
-            retryingDatabaseOperationFacade.updateUser(params);
+            retryingDatabaseOperationFacade.retry(() -> userDao.updateUser(params));
             invalidateCache(oldUser.getUsername());
             // Force a re-authentication if the user is currently logged-in
             accessTokenService.deleteRefreshToken(oldUser);
@@ -269,10 +269,10 @@ public class UserServiceInternalImpl implements UserServiceInternal {
         params.put(USER_IDS, ids);
 
         try {
-            retryingDatabaseOperationFacade.deleteUsers(params);
+            retryingDatabaseOperationFacade.retry(() -> userDao.deleteUsers(params));
             invalidateCache(users);
             // Cleanup user properties...
-            retryingDatabaseOperationFacade.deleteUserPropertiesByUserIds(ids);
+            retryingDatabaseOperationFacade.retry(() -> userDao.deleteUserPropertiesByUserIds(ids));
         } catch (Exception e) {
             throw new ServiceLayerException("Unknown database error", e);
         }
@@ -288,7 +288,7 @@ public class UserServiceInternalImpl implements UserServiceInternal {
         params.put(ENABLED, enabled? 1: 0);
 
         try {
-            retryingDatabaseOperationFacade.enableUsers(params);
+            retryingDatabaseOperationFacade.retry(() -> userDao.enableUsers(params));
             invalidateCache(users);
             return getUsersByIdOrUsername(userIds, usernames);
         } catch (Exception e) {
@@ -347,10 +347,10 @@ public class UserServiceInternalImpl implements UserServiceInternal {
                 if (CryptoUtils.matchPassword(user.getPassword(), current)) {
                     if (verifyPasswordRequirements(newPassword)) {
                         String hashedPassword = CryptoUtils.hashPassword(newPassword);
-                        params = new HashMap<>();
-                        params.put(USERNAME, username);
-                        params.put(PASSWORD, hashedPassword);
-                        retryingDatabaseOperationFacade.setUserPassword(params);
+                        HashMap<String, Object> setPasswordParams = new HashMap<>();
+                        setPasswordParams.put(USERNAME, username);
+                        setPasswordParams.put(PASSWORD, hashedPassword);
+                        retryingDatabaseOperationFacade.retry(() -> userDao.setUserPassword(setPasswordParams));
                         invalidateCache(username);
                         return true;
                     } else {
@@ -381,10 +381,10 @@ public class UserServiceInternalImpl implements UserServiceInternal {
                         throw new UserExternallyManagedException();
                     } else {
                         String hashedPassword = CryptoUtils.hashPassword(newPassword);
-                        params = new HashMap<>();
-                        params.put(USERNAME, username);
-                        params.put(PASSWORD, hashedPassword);
-                        retryingDatabaseOperationFacade.setUserPassword(params);
+                        HashMap<String, Object> setPasswordParams = new HashMap<>();
+                        setPasswordParams.put(USERNAME, username);
+                        setPasswordParams.put(PASSWORD, hashedPassword);
+                        retryingDatabaseOperationFacade.retry(() -> userDao.setUserPassword(setPasswordParams));
                         invalidateCache(username);
                         return true;
                     }
@@ -411,7 +411,7 @@ public class UserServiceInternalImpl implements UserServiceInternal {
     public User getUserByGitName(String gitName) throws ServiceLayerException, UserNotFoundException {
         User user =  userDao.getUserByGitName(gitName);
         if (Objects.isNull(user)) {
-            logger.info("Git user " + gitName + " not found in DB.");
+            logger.info("Git user '{}' was not found in the database", gitName);
             user = getUserByIdOrUsername(-1, GIT_REPO_USER_USERNAME);
         }
         return user;
@@ -442,7 +442,7 @@ public class UserServiceInternalImpl implements UserServiceInternal {
             return singletonMap(siteId, getUserProperties(user, dbSiteId));
         } catch (UserNotFoundException e) {
             // This should never happen...
-            logger.error("Error getting current user", e);
+            logger.error("Failed to get the current user with username '{}' in site '{}'", username, siteId, e);
             return null;
         }
     }
@@ -455,12 +455,12 @@ public class UserServiceInternalImpl implements UserServiceInternal {
         var username = securityService.getCurrentUser();
         try {
             var user = getUserByIdOrUsername(0, username);
-            retryingDatabaseOperationFacade.updateUserProperties(user.getId(), dbSiteId, propertiesToUpdate);
+            retryingDatabaseOperationFacade.retry(() -> userDao.updateUserProperties(user.getId(), dbSiteId, propertiesToUpdate));
 
             return getUserProperties(user, dbSiteId);
         } catch (UserNotFoundException e) {
             // This should never happen...
-            logger.error("Error getting current user", e);
+            logger.error("Failed to get the current user with username '{}' in site '{}'", username, siteId, e);
             return null;
         }
     }
@@ -474,12 +474,12 @@ public class UserServiceInternalImpl implements UserServiceInternal {
         var username = securityService.getCurrentUser();
         try {
             var user = getUserByIdOrUsername(0, username);
-            retryingDatabaseOperationFacade.deleteUserProperties(user.getId(), dbSiteId, propertiesToDelete);
+            retryingDatabaseOperationFacade.retry(() -> userDao.deleteUserProperties(user.getId(), dbSiteId, propertiesToDelete));
 
             return getUserProperties(user, dbSiteId);
         } catch (UserNotFoundException e) {
             // This should never happen...
-            logger.error("Error getting current user", e);
+            logger.error("Failed to get the current user with username '{}' in site '{}'", username, siteId, e);
             return null;
         }
     }

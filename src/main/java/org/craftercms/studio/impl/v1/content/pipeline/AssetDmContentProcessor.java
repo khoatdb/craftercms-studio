@@ -21,8 +21,8 @@ import org.craftercms.studio.api.v1.content.pipeline.PipelineContent;
 import org.craftercms.studio.api.v1.exception.ContentProcessException;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
-import org.craftercms.studio.api.v1.log.Logger;
-import org.craftercms.studio.api.v1.log.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.craftercms.studio.api.v1.to.ContentAssetInfoTO;
 import org.craftercms.studio.api.v1.to.ContentItemTO;
 import org.craftercms.studio.api.v1.to.ResultTO;
@@ -120,8 +120,8 @@ public class AssetDmContentProcessor extends FormDmContentProcessor {
                                                    boolean createFolders, boolean isPreview, boolean unlock,
                                                    boolean isSystemAsset, ResultTO result)
             throws ServiceLayerException, UserNotFoundException {
-        logger.debug("Writing content asset: [site: " + site + ", path: " + path + ", assetName: "
-                + assetName + ", createFolders: " + createFolders);
+        logger.debug("Writing content asset in site '{}' path '{}' assetName '{}' createFolders '{}'",
+                site, path, assetName, createFolders);
 
         String ext = null;
         int index = assetName.lastIndexOf(".");
@@ -130,6 +130,7 @@ public class AssetDmContentProcessor extends FormDmContentProcessor {
         }
 
         String contentPath = path + FILE_SEPARATOR + assetName;
+        contentPath = contentPath.replaceAll(FILE_SEPARATOR + FILE_SEPARATOR, FILE_SEPARATOR);
 
         try {
             // look up the path content first
@@ -217,9 +218,9 @@ public class AssetDmContentProcessor extends FormDmContentProcessor {
             // Item
             itemServiceInternal.persistItemAfterWrite(site, relativePath, user, commitId, unlock);
         }
+
         if (unlock) {
             contentRepositoryV1.unLockItem(site, relativePath);
-            logger.debug("Unlocked the content site " + site + " path " + relativePath);
         } else {
             contentRepository.lockItem(site, relativePath);
         }

@@ -15,6 +15,9 @@
  */
 package org.craftercms.studio.model.rest.clipboard;
 
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+
 import javax.validation.constraints.NotEmpty;
 
 /**
@@ -29,12 +32,14 @@ public class DuplicateRequest {
      * The id of the site
      */
     @NotEmpty
+    @ValidSiteId
     protected String siteId;
 
     /**
      * The path of the item
      */
     @NotEmpty
+    @ValidExistingContentPath
     protected String path;
 
     public String getSiteId() {

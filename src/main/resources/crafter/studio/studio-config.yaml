@@ -122,15 +122,18 @@ studio.content.fullPath.maxSize: 1024
 studio.content.policy.config.path: /config/studio/site-policy-config.xml
 # Item MIME-types that are editable directly in Crafter Studio
 studio.content.item.editableTypes:
-  - text/plain
-  - text/html
-  - text/css
-  - text/x-freemarker
-  - text/x-groovy
+  - text/*
   - application/javascript
   - application/json
   - application/xml
   - application/xhtml+xml
+  - application/x-httpd-php
+  - application/rtf
+  - application/ld+json
+  - application/x-groovy
+  - application/x-sh
+  - application/x-yaml
+  - application/x-csh
 ############################################################
 ##                   Site Configuration                   ##
 ############################################################
@@ -322,17 +325,18 @@ studio.security.forgotPassword.email.template: /templates/system/email/forgotPas
 studio.security.forgotPassword.token.timeout: 60
 # Reset password service url
 studio.security.resetPassword.serviceUrl: "login"
-# Password requirements validation regular expression
-# The supported capture group keys are:
-#   hasNumbers
-#   hasLowercase
-#   hasUppercase
-#   hasSpecialChars
-#   noSpaces
-#   minLength
-#   maxLength
-#   minMaxLength
-studio.security.passwordRequirements.validationRegex: ^(?=(?<hasNumbers>.*[0-9]))(?=(?<hasLowercase>.*[a-z]))(?=(?<hasUppercase>.*[A-Z]))(?=(?<hasSpecialChars>.*[~|!`,;\/@#$%^&+=]))(?<minLength>.{8,})$
+# Password requirements minimum complexity
+# This is based on https://github.com/dropbox/zxcvbn
+# The minimum complexity corresponds to the password score
+# You can try this out here https://lowe.github.io/tryzxcvbn/
+#  score      # Integer from 0-4 (useful for implementing a strength bar)
+#  0 # too guessable: risky password. (guesses < 10^3)
+#  1 # very guessable: protection from throttled online attacks. (guesses < 10^6)
+#  2 # somewhat guessable: protection from unthrottled online attacks. (guesses < 10^8)
+#  3 # safely unguessable: moderate protection from offline slow-hash scenario. (guesses < 10^10)
+#  4 # very unguessable: strong protection from offline slow-hash scenario. (guesses >= 10^10)
+# The default value is 3
+studio.security.passwordRequirements.minimumComplexity: 3
 # Delay set password API response in seconds
 studio.security.setPasswordDelay: 1
 
@@ -616,26 +620,6 @@ studio.upgrade.template.formDefinition: config/studio/content-types{name}/form-d
 ################################################################
 # Publishing lock TTL in minutes
 studio.publishing.siteLock.ttl: 180
-
-##################################################
-##                 Clustering                   ##
-##################################################
-# Cluster Git URL format for synching members.
-# - Typical SSH URL format: ssh://{username}@{localAddress}{absolutePath}
-# - Typical HTTPS URL format: https://{localAddress}/repos/sites
-studio.clustering.sync.urlFormat: ssh://{username}@{localAddress}{absolutePath}
-
-################################################################
-##                   Clustering Thread Pool                   ##
-################################################################
-# Heartbeat Job interval in milliseconds which is how often to update cluster member's heartbeat in DB
-studio.clustering.heartbeatJob.interval: 10000
-# Inactivity Check Job interval in milliseconds which is how often to check for inactive cluster members
-studio.clustering.inactivityCheckJob.interval: 30000
-# Cluster member after heartbeat stale for amount of minutes will be declared inactive
-studio.clustering.heartbeatStale.timeLimit: 5
-# Cluster member after being inactive for amount of minutes will be removed from cluster
-studio.clustering.inactivity.timeLimit: 5
 
 ################################################################
 ##                             CORS                           ##
@@ -954,8 +938,10 @@ studio.marketplace.plugin.contentType.pattern: '/config/studio/content-types(/.+
 studio.cache.templates: true
 # Indicates if the browser should cache responses for static-assets
 studio.cache.assets.enabled: true
-# The max age in minutes that the browser should cache responses for static-assets
-studio.cache.assets.maxAge: 60
+# The max age in seconds that the browser should cache responses for requests matching `studio.cache.assets.maxAge.includeUrls`
+studio.cache.assets.maxAge: 3600
+# The urls that should include max-age=<studio.cache.assets.maxAge> in Cache-Control header. Other urls will be set to default max-age=0, must-revalidate
+studio.cache.assets.maxAge.includeUrls: /static-assets/**,/1/plugin/file/**
 
 ##################################################
 ##             Forwarded Headers                ##
@@ -969,20 +955,12 @@ studio.forwarded.headers.enabled: false
 ##################################################
 # Studio Clock job ticking frequency
 studio.clockJob.frequency: 5000
-# Random offset to time shift cluster members in milliseconds
-studio.clockJob.task.cluster.randomOffset: 1000
 # Studio Clock Job thread pool core size
 studio.clockJob.taskExecutor.corePoolSize: 50
 # Studio Clock Job thread pool maximum size
 studio.clockJob.taskExecutor.maxPoolSize: 500
 # Studio Clock Job thread pool queue capacity
 studio.clockJob.taskExecutor.queueCapacity: 2000
-# Cluster Global Repo sync execute every N cycles
-studio.clockJob.task.cluster.globalRepoSync.executeEveryNCycles: 12
-# Cluster Site Sandbox sync execute every N cycles
-studio.clockJob.task.cluster.siteSandboxRepoSync.executeEveryNCycles: 2
-# Cluster Site Published sync execute every N cycles
-studio.clockJob.task.cluster.sitePublishedRepoSync.executeEveryNCycles: 12
 # Sync repository execute every N cycles
 studio.clockJob.task.syncRepository.executeEveryNCycles: 1
 # Publisher execute every N cycles

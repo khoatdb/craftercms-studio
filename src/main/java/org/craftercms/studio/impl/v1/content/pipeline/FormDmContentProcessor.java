@@ -23,6 +23,7 @@ import org.craftercms.studio.api.v1.content.pipeline.PipelineContent;
 import org.craftercms.studio.api.v1.exception.ContentNotFoundException;
 import org.craftercms.studio.api.v1.exception.ContentProcessException;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
+import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,7 @@ import org.craftercms.studio.api.v2.repository.ContentRepository;
 import org.craftercms.studio.api.v2.service.item.internal.ItemServiceInternal;
 import org.craftercms.studio.impl.v1.util.ContentFormatUtils;
 import org.craftercms.studio.impl.v1.util.ContentUtils;
+import org.springframework.context.annotation.Lazy;
 
 import java.io.InputStream;
 import java.util.List;
@@ -83,7 +85,7 @@ public class FormDmContentProcessor extends PathMatchProcessor implements DmCont
             writeContent(content, result);
         } catch (ServiceLayerException e) {
             logger.error("Failed to write content '{}'", content.getId(), e);
-            throw new ContentProcessException(format("Failed to write content '%s'", content.getId(), e));
+            throw new ContentProcessException(format("Failed to write content '%s'", content.getId()), e);
         } finally {
             content.closeContentStream();
         }
@@ -157,7 +159,7 @@ public class FormDmContentProcessor extends PathMatchProcessor implements DmCont
     }
 
     // For backward compatibility ignore the exception
-    protected void unlock(String siteId, String path) throws ContentNotFoundException {
+    protected void unlock(String siteId, String path) throws ContentNotFoundException, SiteNotFoundException {
         try {
             contentServiceV2.unlockContent(siteId, path);
             logger.debug("Unlocked the content at site '{}' path '{}'", siteId, path);
@@ -201,6 +203,7 @@ public class FormDmContentProcessor extends PathMatchProcessor implements DmCont
                         ContentUtils.getParentUrl(itemPath.replace(FILE_SEPARATOR + INDEX_FILE, ""));
                 Item parent = itemServiceInternal.getItem(site, parentItemPath, true);
                 itemServiceInternal.persistItemAfterCreate(site, itemPath, user, commitId, unlock, parent.getId());
+                contentService.notifyContentEvent(site, itemPath);
             } catch (Exception e) {
                 logger.error("Failed to create a new file in site '{}' name '{}'", site, fileName, e);
             } finally {
@@ -257,6 +260,7 @@ public class FormDmContentProcessor extends PathMatchProcessor implements DmCont
             // Item
             // TODO: get local code with API 2
             itemServiceInternal.persistItemAfterWrite(site, path, user, commitId, unlock);
+            contentService.notifyContentEvent(site, path);
         }
 
         // unlock the content upon save if the flag is true
@@ -355,6 +359,7 @@ public class FormDmContentProcessor extends PathMatchProcessor implements DmCont
         }
     }
 
+    @Lazy
     public void setContentService(ContentService contentService) {
         this.contentService = contentService;
     }

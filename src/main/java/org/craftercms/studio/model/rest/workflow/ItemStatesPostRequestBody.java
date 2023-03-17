@@ -16,21 +16,26 @@
 
 package org.craftercms.studio.model.rest.workflow;
 
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
 import java.util.List;
 
 public class ItemStatesPostRequestBody {
 
     @NotEmpty
+    @ValidSiteId
     private String siteId;
     @NotEmpty
-    private List<String> items;
-    private boolean clearSystemProcessing;
-    private boolean clearUserLocked;
-    private Boolean isNew;
-    private Boolean modified;
-    private Boolean live;
-    private Boolean staged;
+    private List<@NotBlank @ValidExistingContentPath String> items;
+
+    @NotNull
+    @JsonUnwrapped
+    private ItemStatesUpdate update;
 
     public String getSiteId() {
         return siteId;
@@ -48,51 +53,11 @@ public class ItemStatesPostRequestBody {
         this.items = items;
     }
 
-    public boolean isClearSystemProcessing() {
-        return clearSystemProcessing;
+    public ItemStatesUpdate getUpdate() {
+        return update;
     }
 
-    public void setClearSystemProcessing(boolean clearSystemProcessing) {
-        this.clearSystemProcessing = clearSystemProcessing;
-    }
-
-    public boolean isClearUserLocked() {
-        return clearUserLocked;
-    }
-
-    public void setClearUserLocked(boolean clearUserLocked) {
-        this.clearUserLocked = clearUserLocked;
-    }
-
-    public Boolean getNew() {
-        return isNew;
-    }
-
-    public void setNew(final Boolean isNew) {
-        this.isNew = isNew;
-    }
-
-    public Boolean getModified() {
-        return modified;
-    }
-
-    public void setModified(final Boolean modified) {
-        this.modified = modified;
-    }
-
-    public Boolean getLive() {
-        return live;
-    }
-
-    public void setLive(Boolean live) {
-        this.live = live;
-    }
-
-    public Boolean getStaged() {
-        return staged;
-    }
-
-    public void setStaged(Boolean staged) {
-        this.staged = staged;
+    public void setUpdate(ItemStatesUpdate update) {
+        this.update = update;
     }
 }

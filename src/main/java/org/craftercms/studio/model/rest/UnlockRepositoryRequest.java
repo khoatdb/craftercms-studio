@@ -16,10 +16,17 @@
 
 package org.craftercms.studio.model.rest;
 
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+import org.craftercms.studio.api.v1.constant.GitRepositories;
+
+import javax.validation.constraints.NotEmpty;
+
 public class UnlockRepositoryRequest {
 
+    @NotEmpty
+    @ValidSiteId
     private String siteId;
-    private String repositoryType;
+    private GitRepositories repositoryType;
 
     public String getSiteId() {
         return siteId;
@@ -29,11 +36,11 @@ public class UnlockRepositoryRequest {
         this.siteId = siteId;
     }
 
-    public String getRepositoryType() {
+    public GitRepositories getRepositoryType() {
         return repositoryType;
     }
 
-    public void setRepositoryType(String repositoryType) {
+    public void setRepositoryType(GitRepositories repositoryType) {
         this.repositoryType = repositoryType;
     }
 }

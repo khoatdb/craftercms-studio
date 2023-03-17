@@ -47,6 +47,7 @@
         <result property="recordLastUpdated" column="record_last_updated"/>
         <result property="groupName" column="group_name"/>
         <result property="groupDescription" column="group_description"/>
+        <result property="externallyManagedAsInt" column="externally_managed"/>
         <association property="organization" column="org_id" javaType="org.craftercms.studio.api.v2.dal.Organization"
                      select="selectOrganizationById"/>
     </resultMap>
@@ -93,7 +94,9 @@
             <bind name="pattern" value="'%' + keyword + '%'" />
             AND group_name like #{pattern}
         </if>
-        ORDER BY #{sort}
+        <if test="sort != null and sort != '' ">
+            ORDER BY ${sort}
+        </if>
         LIMIT #{offset}, #{limit}
     </select>
 
@@ -111,8 +114,8 @@
     </select>
 
     <insert id="createGroup" parameterType="java.util.Map" useGeneratedKeys="true" keyColumn="id">
-        INSERT INTO `group` (record_last_updated, org_id, group_name, group_description)
-        VALUES (CURRENT_TIMESTAMP, #{orgId}, #{groupName}, #{groupDescription}) ;
+        INSERT IGNORE INTO `group` (record_last_updated, org_id, group_name, group_description, externally_managed)
+        VALUES (CURRENT_TIMESTAMP, #{orgId}, #{groupName}, #{groupDescription}, #{externallyManaged}) ;
         <selectKey resultType="long" order="AFTER" keyProperty="id">
             select LAST_INSERT_ID() as id
         </selectKey>
@@ -120,8 +123,7 @@
 
     <update id="updateGroup" parameterType="org.craftercms.studio.api.v2.dal.Group">
         UPDATE `group`
-        SET group_name = #{groupName},
-            group_description = #{groupDescription},
+        SET group_description = #{groupDescription},
             record_last_updated = CURRENT_TIMESTAMP
         WHERE id = #{id}
     </update>
@@ -152,7 +154,9 @@
         SELECT u.* FROM `user` u INNER JOIN `group_user` gu ON u.id = gu.user_id
         WHERE gu.group_id = #{groupId}
         AND u.deleted = 0
-        ORDER BY #{sort}
+        <if test="sort != null and sort != '' ">
+            ORDER BY ${sort}
+        </if>
         LIMIT #{offset}, #{limit}
     </select>
 

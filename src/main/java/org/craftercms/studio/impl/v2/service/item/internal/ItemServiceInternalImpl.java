@@ -25,8 +25,6 @@ import org.craftercms.studio.api.v1.dal.SiteFeed;
 import org.craftercms.studio.api.v1.dal.SiteFeedMapper;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.craftercms.studio.api.v1.service.GeneralLockService;
 import org.craftercms.studio.api.v1.service.configuration.ServicesConfig;
 import org.craftercms.studio.api.v1.service.content.ContentService;
@@ -62,10 +60,10 @@ import static org.craftercms.studio.api.v2.dal.QueryParameterNames.SITE_ID;
 public class ItemServiceInternalImpl implements ItemServiceInternal {
     // TODO: SJ: Add logging to this class
 
-    public final static String INTERNAL_NAME = "//internal-name";
-    public final static String CONTENT_TYPE = "//content-type";
-    public final static String DISABLED = "//disabled";
-    public final static String LOCALE_CODE = "//locale-code";
+    public final static String INTERNAL_NAME = "/*[1]/internal-name";
+    public final static String CONTENT_TYPE = "/*[1]/content-type";
+    public final static String DISABLED = "/*[1]/disabled";
+    public final static String LOCALE_CODE = "/*[1]/locale-code";
 
     private UserServiceInternal userServiceInternal;
     private SiteFeedMapper siteFeedMapper;
@@ -106,6 +104,9 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
         Map<String, String> params = new HashMap<>();
         params.put(SITE_ID, siteId);
         SiteFeed siteFeed = siteFeedMapper.getSite(params);
+        if (Objects.isNull(siteFeed)) {
+            return null;
+        }
         DetailedItem item;
         String stagingEnv = servicesConfig.getStagingEnvironment(siteId);
         String liveEnv = servicesConfig.getLiveEnvironment(siteId);
@@ -487,7 +488,7 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
             throws ServiceLayerException, UserNotFoundException {
         User userObj = userServiceInternal.getUserByIdOrUsername(-1, username);
         Item item = instantiateItem(siteId, path)
-                .withPreviewUrl(contentType == CONTENT_TYPE_FOLDER ? null : getBrowserUrl(siteId, path))
+                .withPreviewUrl(CONTENT_TYPE_FOLDER.equals(contentType) ? null : getBrowserUrl(siteId, path))
                 .withLastModifiedBy(userObj.getId())
                 .withLastModifiedOn(DateUtils.getCurrentTime())
                 .withLabel(name)

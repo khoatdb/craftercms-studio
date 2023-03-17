@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -16,13 +16,22 @@
 
 package org.craftercms.studio.model.rest.content;
 
+import org.craftercms.commons.validation.annotations.param.EsapiValidatedParam;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+import org.craftercms.commons.validation.annotations.param.ValidateSecurePathParam;
+
 import javax.validation.constraints.NotEmpty;
+
+import static org.craftercms.commons.validation.annotations.param.EsapiValidationType.CONTENT_PATH_WRITE;
 
 public class UnlockItemByPathRequest {
 
     @NotEmpty
+    @ValidSiteId
     private String siteId;
     @NotEmpty
+    @ValidateSecurePathParam
+    @EsapiValidatedParam(type = CONTENT_PATH_WRITE)
     private String path;
 
     public String getSiteId() {

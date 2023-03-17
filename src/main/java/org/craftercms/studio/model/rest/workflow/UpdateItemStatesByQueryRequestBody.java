@@ -16,14 +16,21 @@
 
 package org.craftercms.studio.model.rest.workflow;
 
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+
+import javax.validation.Valid;
 import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
 
 public class UpdateItemStatesByQueryRequestBody {
 
-    @NotEmpty
+    @Valid
+    @NotNull
     private Query query;
-    @NotEmpty
-    private ItemStatesPostRequestBody update;
+    @Valid
+    @NotNull
+    private ItemStatesUpdate update;
 
     public Query getQuery() {
         return query;
@@ -33,17 +40,19 @@ public class UpdateItemStatesByQueryRequestBody {
         this.query = query;
     }
 
-    public ItemStatesPostRequestBody getUpdate() {
+    public ItemStatesUpdate getUpdate() {
         return update;
     }
 
-    public void setUpdate(ItemStatesPostRequestBody update) {
+    public void setUpdate(ItemStatesUpdate update) {
         this.update = update;
     }
 
-    public class Query {
+    public static class Query {
         @NotEmpty
+        @ValidSiteId
         private String siteId;
+        @ValidExistingContentPath
         private String path;
         private Long states;
 

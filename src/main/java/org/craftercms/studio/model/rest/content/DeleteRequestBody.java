@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -16,17 +16,22 @@
 
 package org.craftercms.studio.model.rest.content;
 
-import javax.validation.Valid;
+import org.craftercms.commons.validation.annotations.param.EsapiValidatedParam;
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidateSecurePathParam;
+
 import javax.validation.constraints.NotEmpty;
 import java.util.List;
 
+import static org.craftercms.commons.validation.annotations.param.EsapiValidationType.SITE_ID;
+
 public class DeleteRequestBody {
 
-    @NotEmpty
+    @EsapiValidatedParam(type = SITE_ID)
     private String siteId;
     @NotEmpty
-    private List<@Valid @NotEmpty String> items;
-    private List<String> optionalDependencies;
+    private List<@NotEmpty @ValidExistingContentPath @ValidateSecurePathParam String> items;
+    private List<@NotEmpty @ValidExistingContentPath @ValidateSecurePathParam String> optionalDependencies;
     private String comment;
 
     public String getSiteId() {

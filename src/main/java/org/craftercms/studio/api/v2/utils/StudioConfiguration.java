@@ -180,7 +180,7 @@ public interface StudioConfiguration {
     String SECURITY_FORGOT_PASSWORD_EMAIL_TEMPLATE = "studio.security.forgotPassword.email.template";
     String SECURITY_FORGOT_PASSWORD_TOKEN_TIMEOUT = "studio.security.forgotPassword.token.timeout";
     String SECURITY_RESET_PASSWORD_SERVICE_URL = "studio.security.resetPassword.serviceUrl";
-    String SECURITY_PASSWORD_REQUIREMENTS_VALIDATION_REGEX = "studio.security.passwordRequirements.validationRegex";
+    String SECURITY_PASSWORD_REQUIREMENTS_MINIMUM_COMPLEXITY = "studio.security.passwordRequirements.minimumComplexity";
     String SECURITY_SET_PASSWORD_DELAY = "studio.security.setPasswordDelay";
 
     /** Page Navigation Order Service */
@@ -236,18 +236,6 @@ public interface StudioConfiguration {
     /** Publishing Thread Pool **/
     String PUBLISHING_SITE_LOCK_TTL = "studio.publishing.siteLock.ttl";
 
-    /** Clustering **/
-    String CLUSTERING_SYNC_URL_FORMAT = "studio.clustering.sync.urlFormat";
-
-    /** Clustering Thread Pool **/
-    String CLUSTERING_HEARTBEAT_JOB_INTERVAL = "studio.clustering.heartbeatJob.interval";
-    String CLUSTERING_INACTIVITY_CHECK_JOB_INTERVAL = "studio.clustering.inactivityCheckJob.interval";
-    String CLUSTERING_HEARTBEAT_STALE_TIME_LIMIT = "studio.clustering.heartbeatStale.timeLimit";
-    String CLUSTERING_INACTIVITY_TIME_LIMIT = "studio.clustering.inactivity.timeLimit";
-
-    /** Cluster Node Registration **/
-    String CLUSTERING_NODE_REGISTRATION = "studio.clustering.node.registration";
-
     /** Asset processing **/
     String CONFIGURATION_ASSET_PROCESSING_TINIFY_API_KEY = "studio.configuration.asset.processing.tinify.apiKey";
 
@@ -291,14 +279,6 @@ public interface StudioConfiguration {
     String CLOCK_JOB_TASK_EXECUTOR_CORE_POOL_SIZE = "studio.clockJob.taskExecutor.corePoolSize";
     String CLOCK_JOB_TASK_EXECUTOR_MAX_POOL_SIZE = "studio.clockJob.taskExecutor.maxPoolSize";
     String CLOCK_JOB_TASK_EXECUTOR_QUEUE_CAPACITY = "studio.clockJob.taskExecutor.queueCapacity";
-    String CLOCK_JOB_TASK_CLUSTER_RANDOM_OFFSET =
-            "studio.clockJob.task.cluster.randomOffset";
-    String CLOCK_JOB_TASK_CLUSTER_GLOBAL_REPO_SYNC_EXECUTE_EVERY_N_CYCLES =
-            "studio.clockJob.task.cluster.globalRepoSync.executeEveryNCycles";
-    String CLOCK_JOB_TASK_CLUSTER_SITE_SANDBOX_REPO_SYNC_EXECUTE_EVERY_N_CYCLES =
-            "studio.clockJob.task.cluster.siteSandboxRepoSync.executeEveryNCycles";
-    String CLOCK_JOB_TASK_CLUSTER_SITE_PUBLISHED_REPO_SYNC_EXECUTE_EVERY_N_CYCLES =
-            "studio.clockJob.task.cluster.sitePublishedRepoSync.executeEveryNCycles";
     String CLOCK_JOB_TASK_SYNC_REPOSITORY_EXECUTE_EVERY_N_CYCLES =
             "studio.clockJob.task.syncRepository.executeEveryNCycles";
     String CLOCK_JOB_TASK_PUBLISHER_EXECUTE_EVERY_N_CYCLES =

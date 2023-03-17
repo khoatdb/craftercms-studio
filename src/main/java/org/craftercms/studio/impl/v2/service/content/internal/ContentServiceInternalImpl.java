@@ -38,6 +38,7 @@ import org.craftercms.studio.api.v2.repository.ContentRepository;
 import org.craftercms.studio.api.v2.service.content.internal.ContentServiceInternal;
 import org.craftercms.studio.model.rest.content.GetChildrenResult;
 import org.springframework.core.io.Resource;
+import org.springframework.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static java.lang.String.format;
 import static org.craftercms.studio.api.v1.constant.StudioConstants.CONTENT_TYPE_FOLDER;
 import static org.craftercms.studio.api.v1.constant.StudioConstants.FILE_SEPARATOR;
 import static org.craftercms.studio.api.v1.constant.StudioConstants.INDEX_FILE;
@@ -92,13 +94,14 @@ public class ContentServiceInternalImpl implements ContentServiceInternal {
         Map<String, String> params = new HashMap<>();
         params.put(SITE_ID, siteId);
         SiteFeed siteFeed = siteFeedMapper.getSite(params);
+        int total = itemDao.getChildrenByPathTotal(siteFeed.getId(), parentFolderPath, locale, keyword, systemTypes,
+                excludes);
         List<Item> resultSet = itemDao.getChildrenByPath(siteFeed.getId(), parentFolderPath,
                 CONTENT_TYPE_FOLDER, locale, keyword, systemTypes, excludes, sortStrategy, order, offset, limit);
         GetChildrenResult toRet = processResultSet(siteId, resultSet);
         toRet.setOffset(offset);
         toRet.setLimit(limit);
-        toRet.setTotal(itemDao.getChildrenByPathTotal(siteFeed.getId(), parentFolderPath, locale, keyword, systemTypes,
-                excludes));
+        toRet.setTotal(total);
         return toRet;
     }
 
@@ -143,7 +146,7 @@ public class ContentServiceInternalImpl implements ContentServiceInternal {
     public DetailedItem getItemByPath(String siteId, String path, boolean preferContent)
             throws ServiceLayerException, UserNotFoundException {
         if (!contentRepository.contentExists(siteId, path)) {
-            throw new ContentNotFoundException(path, siteId, "Content not found at path " + path + " site " + siteId);
+            throw new ContentNotFoundException(path, siteId, format("Content not found at path '%s' site '%s'", path, siteId));
         }
         Map<String, String> params = new HashMap<>();
         params.put(SITE_ID, siteId);
@@ -158,7 +161,10 @@ public class ContentServiceInternalImpl implements ContentServiceInternal {
             item = itemDao.getItemByPath(siteFeed.getId(), path, CONTENT_TYPE_FOLDER, COMPLETED, stagingEnv,
                     liveEnv);
         }
-        DetailedItem detailedItem = Objects.nonNull(item) ? DetailedItem.getInstance(item) : null;
+        if (item == null) {
+            throw new ContentNotFoundException(path, siteId, format("Content not found at path '%s' site '%s'", path, siteId));
+        }
+        DetailedItem detailedItem = DetailedItem.getInstance(item);
         populateDetailedItemPropertiesFromRepository(siteId, detailedItem);
         return detailedItem;
     }
@@ -213,14 +219,19 @@ public class ContentServiceInternalImpl implements ContentServiceInternal {
     }
 
     @Override
-    public boolean isEditable(String itemPath, String itemMimeType) {
+    public boolean isEditable(String itemPath, String mimeType) {
         List<String> editableMimeTypes =
                 Arrays.asList(studioConfiguration.getArray(CONTENT_ITEM_EDITABLE_TYPES, String.class));
-        String mimeType = itemMimeType;
+
+        MimeType itemMimeType;
         if (StringUtils.isEmpty(mimeType)) {
-            mimeType = StudioUtils.getMimeType(itemPath);
+            itemMimeType = MimeType.valueOf(StudioUtils.getMimeType(itemPath));
+        } else {
+            itemMimeType = MimeType.valueOf(mimeType);
         }
-        return editableMimeTypes.contains(mimeType);
+
+        return editableMimeTypes.stream()
+                .anyMatch(type -> (MimeType.valueOf(type)).isCompatibleWith(itemMimeType));
     }
 
     @Override

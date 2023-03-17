@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -16,13 +16,13 @@
 
 package org.craftercms.studio.controller.rest.v2;
 
-import java.beans.ConstructorProperties;
-import java.io.InputStream;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.craftercms.commons.validation.annotations.param.EsapiValidatedParam;
+import org.craftercms.commons.validation.annotations.param.ValidConfigurationPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
 import org.craftercms.studio.api.v1.exception.ContentNotFoundException;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
@@ -34,32 +34,26 @@ import org.craftercms.studio.api.v2.service.content.ContentTypeService;
 import org.craftercms.studio.api.v2.utils.StudioConfiguration;
 import org.craftercms.studio.api.v2.utils.StudioUtils;
 import org.craftercms.studio.model.config.TranslationConfiguration;
-import org.craftercms.studio.model.rest.ConfigurationHistory;
 import org.craftercms.studio.model.rest.ResponseBody;
-import org.craftercms.studio.model.rest.Result;
-import org.craftercms.studio.model.rest.ResultOne;
-import org.craftercms.studio.model.rest.WriteConfigurationRequest;
+import org.craftercms.studio.model.rest.*;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.CacheControl;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import javax.validation.constraints.NotEmpty;
+import java.beans.ConstructorProperties;
+import java.io.InputStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.craftercms.commons.validation.annotations.param.EsapiValidationType.ALPHANUMERIC;
 import static org.craftercms.studio.api.v2.utils.StudioConfiguration.CONFIGURATION_GLOBAL_SYSTEM_SITE;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_CONFIG;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_HISTORY;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_USAGE;
+import static org.craftercms.studio.controller.rest.v2.ResultConstants.*;
+import static org.craftercms.studio.model.rest.ApiResponse.DELETED;
 import static org.craftercms.studio.model.rest.ApiResponse.OK;
 
+@Validated
 @RestController
 @RequestMapping("/api/2/configuration")
 public class ConfigurationController {
@@ -67,41 +61,38 @@ public class ConfigurationController {
     private final ConfigurationService configurationService;
     private final StudioConfiguration studioConfiguration;
     private final ContentTypeService contentTypeService;
-    protected final CacheControl cacheControl;
 
-    @ConstructorProperties({"configurationService", "studioConfiguration", "contentTypeService", "cacheControl"})
+    @ConstructorProperties({"configurationService", "studioConfiguration", "contentTypeService"})
     public ConfigurationController(ConfigurationService configurationService, StudioConfiguration studioConfiguration,
-                                   ContentTypeService contentTypeService, CacheControl cacheControl) {
+                                   ContentTypeService contentTypeService) {
         this.configurationService = configurationService;
         this.studioConfiguration = studioConfiguration;
         this.contentTypeService = contentTypeService;
-        this.cacheControl = cacheControl;
     }
 
     @GetMapping("clear_cache")
-    public ResponseBody clearCache(@RequestParam String siteId) {
+    public Result clearCache(@ValidSiteId @RequestParam String siteId) throws SiteNotFoundException {
         configurationService.invalidateConfiguration(siteId);
-
-        var responseBody = new ResponseBody();
         var result = new Result();
         result.setResponse(OK);
-        responseBody.setResult(result);
-        return responseBody;
+        return result;
     }
 
     @GetMapping("/get_configuration")
-    public ResponseBody getConfiguration(@RequestParam(name = "siteId", required = true) String siteId,
-                                         @RequestParam(name = "module", required = true) String module,
-                                         @RequestParam(name = "path", required = true) String path,
-                                         @RequestParam(name = "environment", required = false) String environment) {
-        String content = StringUtils.EMPTY;
+    public ResponseBody getConfiguration(@ValidSiteId @RequestParam(name = "siteId", required = true) String siteId,
+                                         @EsapiValidatedParam(type = ALPHANUMERIC) @RequestParam(name = "module", required = true) String module,
+                                         @ValidConfigurationPath @RequestParam(name = "path", required = true) String path,
+                                         @EsapiValidatedParam(type = ALPHANUMERIC) @RequestParam(name = "environment", required = false) String environment)
+            throws ContentNotFoundException {
+        final String content;
         if (StringUtils.equals(siteId, studioConfiguration.getProperty(CONFIGURATION_GLOBAL_SYSTEM_SITE))) {
             content = configurationService.getGlobalConfigurationAsString(path);
         } else {
             content = configurationService.getConfigurationAsString(siteId, module, path, environment);
         }
+
         ResponseBody responseBody = new ResponseBody();
-        ResultOne<String> result = new ResultOne<String>();
+        ResultOne<String> result = new ResultOne<>();
         result.setEntity("content", content);
         result.setResponse(OK);
         responseBody.setResult(result);
@@ -127,15 +118,15 @@ public class ConfigurationController {
     }
 
     @GetMapping("/get_configuration_history")
-    public ResponseBody getConfigurationHistory(@RequestParam(name = "siteId", required = true) String siteId,
-                                                @RequestParam(name = "module", required = true) String module,
-                                                @RequestParam(name = "path", required = true) String path,
-                                                @RequestParam(name = "environment", required = false) String environment)
+    public ResponseBody getConfigurationHistory(@ValidSiteId @RequestParam(name = "siteId", required = true) String siteId,
+                                                @EsapiValidatedParam(type = ALPHANUMERIC) @RequestParam(name = "module", required = true) String module,
+                                                @ValidConfigurationPath @RequestParam(name = "path", required = true) String path,
+                                                @EsapiValidatedParam(type = ALPHANUMERIC) @RequestParam(name = "environment", required = false) String environment)
             throws SiteNotFoundException, ContentNotFoundException {
         ConfigurationHistory history = configurationService.getConfigurationHistory(siteId, module, path, environment);
 
         ResponseBody responseBody = new ResponseBody();
-        ResultOne<ConfigurationHistory> result = new ResultOne<ConfigurationHistory>();
+        ResultOne<ConfigurationHistory> result = new ResultOne<>();
         result.setEntity(RESULT_KEY_HISTORY, history);
         result.setResponse(OK);
         responseBody.setResult(result);
@@ -143,7 +134,7 @@ public class ConfigurationController {
     }
 
     @GetMapping("translation")
-    public ResponseBody getConfiguration(@RequestParam String siteId) throws ServiceLayerException {
+    public ResponseBody getTranslationConfiguration(@ValidSiteId @RequestParam String siteId) throws ServiceLayerException {
         ResultOne<TranslationConfiguration> result = new ResultOne<>();
         result.setEntity(RESULT_KEY_CONFIG, configurationService.getTranslationConfiguration(siteId));
         result.setResponse(OK);
@@ -155,9 +146,9 @@ public class ConfigurationController {
     }
 
     @GetMapping("content-type/usage")
-    public ResponseBody getContentTypeUsage(@RequestParam String siteId, @RequestParam String contentType)
+    public ResponseBody getContentTypeUsage(@ValidSiteId @RequestParam String siteId,
+                                            @ValidConfigurationPath @RequestParam String contentType)
             throws Exception {
-
         var result = new ResultOne<>();
         result.setResponse(OK);
         result.setEntity(RESULT_KEY_USAGE, contentTypeService.getContentTypeUsage(siteId, contentType));
@@ -169,15 +160,14 @@ public class ConfigurationController {
     }
 
     @GetMapping("content-type/preview_image")
-    public ResponseEntity<Resource> getContentTypePreviewImage(@RequestParam String siteId, @RequestParam String contentTypeId)
+    public ResponseEntity<Resource> getContentTypePreviewImage(@ValidSiteId @RequestParam String siteId,
+                                                               @ValidConfigurationPath @RequestParam String contentTypeId)
             throws ServiceLayerException {
-
         ImmutablePair<String, Resource> resource = contentTypeService.getContentTypePreviewImage(siteId, contentTypeId);
         String mimeType = StudioUtils.getMimeType(resource.getKey());
 
         return ResponseEntity
                 .ok()
-                .cacheControl(cacheControl)
                 .header(HttpHeaders.CONTENT_TYPE, mimeType)
                 .body(resource.getValue());
     }
@@ -185,11 +175,10 @@ public class ConfigurationController {
     @PostMapping("content-type/delete")
     public ResponseBody deleteContentType(@RequestBody @Valid DeleteContentTypeRequest request)
             throws ServiceLayerException, AuthenticationException, DeploymentException, UserNotFoundException {
-
         contentTypeService.deleteContentType(request.getSiteId(), request.getContentType(),
                 request.isDeleteDependencies());
         var result = new Result();
-        result.setResponse(OK);
+        result.setResponse(DELETED);
 
         var body = new ResponseBody();
         body.setResult(result);
@@ -197,13 +186,13 @@ public class ConfigurationController {
         return body;
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties
     protected static class DeleteContentTypeRequest {
 
-        @NotEmpty
+        @ValidSiteId
         protected String siteId;
 
-        @NotEmpty
+        @ValidConfigurationPath
         protected String contentType;
 
         protected boolean deleteDependencies;

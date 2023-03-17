@@ -17,18 +17,21 @@
 package org.craftercms.studio.model.rest.workflow;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
 
-import javax.validation.Valid;
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotEmpty;
 import java.util.List;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonIgnoreProperties
 public class RejectRequestBody {
 
     @NotEmpty
+    @ValidSiteId
     private String siteId;
     @NotEmpty
-    private List<@Valid @NotEmpty String> items;
+    private List<@NotBlank @ValidExistingContentPath String> items;
     private String comment;
 
     public String getSiteId() {

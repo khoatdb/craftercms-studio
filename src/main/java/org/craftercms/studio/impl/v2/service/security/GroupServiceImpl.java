@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -20,54 +20,60 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.craftercms.commons.security.permissions.DefaultPermission;
 import org.craftercms.commons.security.permissions.annotations.HasPermission;
-import org.craftercms.commons.validation.annotations.param.ValidateParams;
-import org.craftercms.commons.validation.annotations.param.ValidateStringParam;
 import org.craftercms.studio.api.v1.dal.SiteFeed;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
-import org.craftercms.studio.api.v1.exception.security.AuthenticationException;
-import org.craftercms.studio.api.v1.exception.security.GroupAlreadyExistsException;
-import org.craftercms.studio.api.v1.exception.security.GroupNotFoundException;
-import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
+import org.craftercms.studio.api.v1.exception.security.*;
 import org.craftercms.studio.api.v1.service.GeneralLockService;
 import org.craftercms.studio.api.v1.service.site.SiteService;
 import org.craftercms.studio.api.v2.dal.AuditLog;
 import org.craftercms.studio.api.v2.dal.AuditLogParameter;
 import org.craftercms.studio.api.v2.dal.Group;
 import org.craftercms.studio.api.v2.dal.User;
-import org.craftercms.studio.api.v2.service.audit.internal.AuditServiceInternal;
-import org.craftercms.studio.api.v2.service.config.ConfigurationService;
 import org.craftercms.studio.api.v2.exception.OrganizationNotFoundException;
+import org.craftercms.studio.api.v2.service.audit.internal.AuditServiceInternal;
 import org.craftercms.studio.api.v2.service.security.GroupService;
 import org.craftercms.studio.api.v2.service.security.internal.GroupServiceInternal;
 import org.craftercms.studio.api.v2.service.security.internal.OrganizationServiceInternal;
 import org.craftercms.studio.api.v2.service.security.internal.UserServiceInternal;
 import org.craftercms.studio.api.v2.utils.StudioConfiguration;
 
+import java.beans.ConstructorProperties;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.craftercms.studio.api.v1.constant.StudioConstants.REMOVE_SYSTEM_ADMIN_MEMBER_LOCK;
 import static org.craftercms.studio.api.v1.constant.StudioConstants.SYSTEM_ADMIN_GROUP;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_ADD_MEMBERS;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_CREATE;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_DELETE;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_REMOVE_MEMBERS;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_UPDATE;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.TARGET_TYPE_GROUP;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.TARGET_TYPE_USER;
+import static org.craftercms.studio.api.v2.dal.AuditLogConstants.*;
 import static org.craftercms.studio.api.v2.utils.StudioConfiguration.CONFIGURATION_GLOBAL_SYSTEM_SITE;
-import static org.craftercms.studio.permissions.StudioPermissionsConstants.PERMISSION_READ_GROUPS;
+import static org.craftercms.studio.permissions.StudioPermissionsConstants.*;
 
 public class GroupServiceImpl implements GroupService {
 
-    private ConfigurationService configurationService;
-    private GroupServiceInternal groupServiceInternal;
-    private OrganizationServiceInternal organizationServiceInternal;
-    private UserServiceInternal userServiceInternal;
-    private GeneralLockService generalLockService;
-    private StudioConfiguration studioConfiguration;
-    private AuditServiceInternal auditServiceInternal;
-    private SiteService siteService;
+    private final GroupServiceInternal groupServiceInternal;
+    private final OrganizationServiceInternal organizationServiceInternal;
+    private final UserServiceInternal userServiceInternal;
+    private final GeneralLockService generalLockService;
+    private final StudioConfiguration studioConfiguration;
+    private final AuditServiceInternal auditServiceInternal;
+    private final SiteService siteService;
+
+    @ConstructorProperties({"groupServiceInternal", "organizationServiceInternal",
+            "userServiceInternal", "generalLockService",
+            "studioConfiguration", "auditServiceInternal",
+            "siteService"})
+    public GroupServiceImpl(final GroupServiceInternal groupServiceInternal, final OrganizationServiceInternal organizationServiceInternal,
+                            final UserServiceInternal userServiceInternal, final GeneralLockService generalLockService,
+                            final StudioConfiguration studioConfiguration, final AuditServiceInternal auditServiceInternal,
+                            final SiteService siteService) {
+        this.groupServiceInternal = groupServiceInternal;
+        this.organizationServiceInternal = organizationServiceInternal;
+        this.userServiceInternal = userServiceInternal;
+        this.generalLockService = generalLockService;
+        this.studioConfiguration = studioConfiguration;
+        this.auditServiceInternal = auditServiceInternal;
+        this.siteService = siteService;
+    }
 
     @Override
     @HasPermission(type = DefaultPermission.class, action = PERMISSION_READ_GROUPS)
@@ -93,11 +99,11 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "create_groups")
-    @ValidateParams
-    public Group createGroup(long orgId, @ValidateStringParam(maxLength = 512, notEmpty = true) String groupName, String groupDescription)
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_CREATE_GROUPS)
+    public Group createGroup(long orgId, String groupName,
+                             String groupDescription, boolean externallyManaged)
             throws GroupAlreadyExistsException, ServiceLayerException, AuthenticationException {
-        Group toRet = groupServiceInternal.createGroup(orgId, groupName, groupDescription);
+        Group toRet = groupServiceInternal.createGroup(orgId, groupName, groupDescription, externallyManaged);
         SiteFeed siteFeed = siteService.getSite(studioConfiguration.getProperty(CONFIGURATION_GLOBAL_SYSTEM_SITE));
         AuditLog auditLog = auditServiceInternal.createAuditLogEntry();
         auditLog.setOperation(OPERATION_CREATE);
@@ -112,26 +118,28 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "update_groups")
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_UPDATE_GROUPS)
     public Group updateGroup(long orgId, Group group)
-            throws ServiceLayerException, GroupNotFoundException, AuthenticationException {
+            throws ServiceLayerException, GroupNotFoundException, AuthenticationException, GroupExternallyManagedException {
+        checkExternallyManagedGroup(Arrays.asList(group.getId()));
+
         Group toRet = groupServiceInternal.updateGroup(orgId, group);
         SiteFeed siteFeed = siteService.getSite(studioConfiguration.getProperty(CONFIGURATION_GLOBAL_SYSTEM_SITE));
         AuditLog auditLog = auditServiceInternal.createAuditLogEntry();
         auditLog.setOperation(OPERATION_UPDATE);
         auditLog.setSiteId(siteFeed.getId());
         auditLog.setActorId(userServiceInternal.getCurrentUser().getUsername());
-        auditLog.setPrimaryTargetId(group.getGroupName());
+        auditLog.setPrimaryTargetId(toRet.getGroupName());
         auditLog.setPrimaryTargetType(TARGET_TYPE_GROUP);
-        auditLog.setPrimaryTargetValue(group.getGroupName());
+        auditLog.setPrimaryTargetValue(toRet.getGroupName());
         auditServiceInternal.insertAuditLog(auditLog);
         return toRet;
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "delete_groups")
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_DELETE_GROUPS)
     public void deleteGroup(List<Long> groupIds)
-            throws ServiceLayerException, GroupNotFoundException, AuthenticationException {
+            throws ServiceLayerException, GroupNotFoundException, AuthenticationException, GroupExternallyManagedException {
         Group sysAdminGroup;
         try {
             sysAdminGroup = groupServiceInternal.getGroupByName(SYSTEM_ADMIN_GROUP);
@@ -144,6 +152,9 @@ public class GroupServiceImpl implements GroupService {
                 throw new ServiceLayerException("Deleting the System Admin group is not allowed.");
             }
         }
+
+        checkExternallyManagedGroup(groupIds);
+
         List<Group> groups = groupServiceInternal.getGroups(groupIds);
         groupServiceInternal.deleteGroup(groupIds);
         SiteFeed siteFeed = siteService.getSite(studioConfiguration.getProperty(CONFIGURATION_GLOBAL_SYSTEM_SITE));
@@ -167,26 +178,26 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "read_groups")
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_READ_GROUPS)
     public Group getGroup(long groupId) throws ServiceLayerException, GroupNotFoundException {
         return groupServiceInternal.getGroup(groupId);
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "read_groups")
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_READ_GROUPS)
     public List<User> getGroupMembers(long groupId, int offset, int limit, String sort)
             throws ServiceLayerException, GroupNotFoundException {
         return groupServiceInternal.getGroupMembers(groupId, offset, limit, sort);
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "read_groups")
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_READ_GROUPS)
     public int getGroupMembersTotal(final long groupId) throws ServiceLayerException, GroupNotFoundException {
         return groupServiceInternal.getGroupMembersTotal(groupId);
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "update_groups")
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_UPDATE_GROUPS)
     public List<User> addGroupMembers(long groupId, List<Long> userIds, List<String> usernames)
             throws ServiceLayerException, UserNotFoundException, GroupNotFoundException, AuthenticationException {
         List<User> users = groupServiceInternal.addGroupMembers(groupId, userIds, usernames);
@@ -213,7 +224,7 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "update_groups")
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_UPDATE_GROUPS)
     public void removeGroupMembers(long groupId, List<Long> userIds, List<String> usernames)
             throws ServiceLayerException, UserNotFoundException, GroupNotFoundException, AuthenticationException {
         Group group = getGroup(groupId);
@@ -267,35 +278,18 @@ public class GroupServiceImpl implements GroupService {
         }
     }
 
-    public void setGroupServiceInternal(GroupServiceInternal groupServiceInternal) {
-        this.groupServiceInternal = groupServiceInternal;
-    }
-
-    public void setOrganizationServiceInternal(OrganizationServiceInternal organizationServiceInternal) {
-        this.organizationServiceInternal = organizationServiceInternal;
-    }
-
-    public void setUserServiceInternal(UserServiceInternal userServiceInternal) {
-        this.userServiceInternal = userServiceInternal;
-    }
-
-    public void setConfigurationService(ConfigurationService configurationService) {
-        this.configurationService = configurationService;
-    }
-
-    public void setGeneralLockService(GeneralLockService generalLockService) {
-        this.generalLockService = generalLockService;
-    }
-
-    public void setStudioConfiguration(StudioConfiguration studioConfiguration) {
-        this.studioConfiguration = studioConfiguration;
-    }
-
-    public void setAuditServiceInternal(AuditServiceInternal auditServiceInternal) {
-        this.auditServiceInternal = auditServiceInternal;
-    }
-
-    public void setSiteService(SiteService siteService) {
-        this.siteService = siteService;
+    /**
+     * Check if groups contain external managed group member
+     * If matched, the operation must not be permitted.
+     * @param groupIds list of group IDs
+     * @throws ServiceLayerException
+     * @throws GroupNotFoundException
+     * @throws GroupExternallyManagedException
+     */
+    private void checkExternallyManagedGroup(List<Long> groupIds) throws ServiceLayerException, GroupNotFoundException, GroupExternallyManagedException {
+        List<Group> groups = groupServiceInternal.getGroups(groupIds);
+        if (groups.stream().anyMatch(group -> group.isExternallyManaged())) {
+            throw new GroupExternallyManagedException("Cannot update externally managed groups.");
+        }
     }
 }

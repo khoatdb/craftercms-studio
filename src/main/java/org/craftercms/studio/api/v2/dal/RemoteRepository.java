@@ -16,6 +16,11 @@
 
 package org.craftercms.studio.api.v2.dal;
 
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+import org.craftercms.commons.validation.annotations.param.ValidateNoTagsParam;
+
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.Size;
 import java.io.Serializable;
 
 public class RemoteRepository implements Serializable {
@@ -23,40 +28,95 @@ public class RemoteRepository implements Serializable {
     private static final long serialVersionUID = -5031083831374591061L;
 
     private long id;
+    @ValidSiteId
     private String siteId;
+    @Size(max = 50)
     private String remoteName;
+    @Size(max = 2000)
+    @ValidateNoTagsParam
     private String remoteUrl;
+    @NotEmpty
+    @Size(max = 16)
     private String authenticationType;
+    @Size(max = 255)
+    @ValidateNoTagsParam
     private String remoteUsername;
+    @Size(max = 255)
     private String remotePassword;
+    @Size(max = 255)
     private String remoteToken;
     private String remotePrivateKey;
 
-    public long getId() { return id; }
-    public void setId(long id) { this.id = id; }
+    public long getId() {
+        return id;
+    }
 
-    public String getSiteId() { return siteId; }
-    public void setSiteId(String siteId) { this.siteId = siteId; }
+    public void setId(long id) {
+        this.id = id;
+    }
 
-    public String getRemoteName() { return remoteName; }
-    public void setRemoteName(String remoteName) { this.remoteName = remoteName; }
+    public String getSiteId() {
+        return siteId;
+    }
 
-    public String getRemoteUrl() { return remoteUrl; }
-    public void setRemoteUrl(String remoteUrl) { this.remoteUrl = remoteUrl; }
+    public void setSiteId(String siteId) {
+        this.siteId = siteId;
+    }
 
-    public String getAuthenticationType() { return authenticationType; }
-    public void setAuthenticationType(String authenticationType) { this.authenticationType = authenticationType; }
+    public String getRemoteName() {
+        return remoteName;
+    }
 
-    public String getRemoteUsername() { return remoteUsername; }
-    public void setRemoteUsername(String remoteUsername) { this.remoteUsername = remoteUsername; }
+    public void setRemoteName(String remoteName) {
+        this.remoteName = remoteName;
+    }
 
-    public String getRemotePassword() { return remotePassword; }
-    public void setRemotePassword(String remotePassword) { this.remotePassword = remotePassword; }
+    public String getRemoteUrl() {
+        return remoteUrl;
+    }
 
-    public String getRemoteToken() { return remoteToken; }
-    public void setRemoteToken(String remoteToken) { this.remoteToken = remoteToken; }
+    public void setRemoteUrl(String remoteUrl) {
+        this.remoteUrl = remoteUrl;
+    }
 
-    public String getRemotePrivateKey() { return remotePrivateKey; }
-    public void setRemotePrivateKey(String remotePrivateKey) { this.remotePrivateKey = remotePrivateKey; }
+    public String getAuthenticationType() {
+        return authenticationType;
+    }
+
+    public void setAuthenticationType(String authenticationType) {
+        this.authenticationType = authenticationType;
+    }
+
+    public String getRemoteUsername() {
+        return remoteUsername;
+    }
+
+    public void setRemoteUsername(String remoteUsername) {
+        this.remoteUsername = remoteUsername;
+    }
+
+    public String getRemotePassword() {
+        return remotePassword;
+    }
+
+    public void setRemotePassword(String remotePassword) {
+        this.remotePassword = remotePassword;
+    }
+
+    public String getRemoteToken() {
+        return remoteToken;
+    }
+
+    public void setRemoteToken(String remoteToken) {
+        this.remoteToken = remoteToken;
+    }
+
+    public String getRemotePrivateKey() {
+        return remotePrivateKey;
+    }
+
+    public void setRemotePrivateKey(String remotePrivateKey) {
+        this.remotePrivateKey = remotePrivateKey;
+    }
 
 }

@@ -16,11 +16,6 @@
 
 package org.craftercms.studio.controller.rest.v2;
 
-import java.beans.ConstructorProperties;
-import java.io.IOException;
-import java.io.InputStream;
-import javax.servlet.http.HttpServletRequest;
-
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
@@ -28,6 +23,14 @@ import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.commons.fileupload.util.Streams;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.craftercms.commons.config.profiles.ConfigurationProfileNotFoundException;
+import org.craftercms.commons.validation.ValidationException;
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+import org.craftercms.commons.validation.validators.impl.EsapiValidator;
+import org.craftercms.commons.validation.validators.impl.NoTagsValidator;
+import org.craftercms.commons.validation.validators.impl.SecurePathValidator;
+import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v1.exception.WebDavException;
 import org.craftercms.studio.api.v1.webdav.WebDavItem;
 import org.craftercms.studio.api.v2.exception.InvalidParametersException;
@@ -35,16 +38,20 @@ import org.craftercms.studio.api.v2.service.webdav.WebDavService;
 import org.craftercms.studio.model.rest.ApiResponse;
 import org.craftercms.studio.model.rest.ResultList;
 import org.craftercms.studio.model.rest.ResultOne;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.Validator;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_PATH;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_PROFILE_ID;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_SITEID;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_TYPE;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.constraints.NotBlank;
+import java.beans.ConstructorProperties;
+import java.io.IOException;
+import java.io.InputStream;
+
+import static org.craftercms.commons.validation.annotations.param.EsapiValidationType.CONTENT_PATH_WRITE;
+import static org.craftercms.commons.validation.annotations.param.EsapiValidationType.SITE_ID;
+import static org.craftercms.studio.controller.rest.ValidationUtils.validateValue;
+import static org.craftercms.studio.controller.rest.v2.RequestConstants.*;
 import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_ITEM;
 import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_ITEMS;
 
@@ -54,6 +61,7 @@ import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KE
  * @author joseross
  * @since 3.1.4
  */
+@Validated
 @RestController
 @RequestMapping("/api/2/webdav")
 public class WebdavController {
@@ -61,7 +69,7 @@ public class WebdavController {
     /**
      * The webdav service
      */
-    protected WebDavService webDavService;
+    protected final WebDavService webDavService;
 
     @ConstructorProperties({"webDavService"})
     public WebdavController(final WebDavService webDavService) {
@@ -76,15 +84,16 @@ public class WebdavController {
      * @param type the type of items to filter
      * @return the list of items
      * @throws WebDavException if there is any error connecting to the WebDAV server
+     * @throws SiteNotFoundException if site does not exist
+     * @throws ConfigurationProfileNotFoundException if the profile is not found
      */
     @GetMapping("list")
     public ResultList<WebDavItem> listItems(
-        @RequestParam(REQUEST_PARAM_SITEID) String siteId,
-        @RequestParam(REQUEST_PARAM_PROFILE_ID) String profileId,
-        @RequestParam(value = REQUEST_PARAM_PATH, required = false, defaultValue = StringUtils.EMPTY) String path,
-        @RequestParam(value = REQUEST_PARAM_TYPE, required = false, defaultValue = StringUtils.EMPTY) String type)
-        throws WebDavException {
-
+            @NotBlank @ValidSiteId @RequestParam(REQUEST_PARAM_SITEID) String siteId,
+            @NotBlank @RequestParam(REQUEST_PARAM_PROFILE_ID) String profileId,
+            @ValidExistingContentPath @RequestParam(value = REQUEST_PARAM_PATH, required = false, defaultValue = StringUtils.EMPTY) String path,
+            @RequestParam(value = REQUEST_PARAM_TYPE, required = false, defaultValue = StringUtils.EMPTY) String type)
+            throws WebDavException, SiteNotFoundException, ConfigurationProfileNotFoundException {
         ResultList<WebDavItem> result = new ResultList<>();
         result.setEntities(RESULT_KEY_ITEMS, webDavService.list(siteId, profileId, path, type));
         result.setResponse(ApiResponse.OK);
@@ -99,56 +108,68 @@ public class WebdavController {
      * @throws IOException if there is any error reading the content of the file
      * @throws WebDavException if there is any error uploading the file to the WebDAV server
      * @throws InvalidParametersException if there is any error parsing the request
+     * @throws SiteNotFoundException if site does not exist
+     * @throws ConfigurationProfileNotFoundException if the profile is not found
      */
     @PostMapping("/upload")
     public ResultOne<WebDavItem> uploadItem(HttpServletRequest request) throws IOException, WebDavException,
-        InvalidParametersException {
-        if (ServletFileUpload.isMultipartContent(request)) {
-            ResultOne<WebDavItem> result = new ResultOne<>();
-            try {
-                ServletFileUpload upload = new ServletFileUpload();
-                FileItemIterator iterator = upload.getItemIterator(request);
-                String siteId = null;
-                String profileId = null;
-                String path = null;
-                if (!iterator.hasNext()) {
-                    throw new InvalidParametersException("Request body is empty");
-                }
-                while (iterator.hasNext()) {
-                    FileItemStream item = iterator.next();
-                    String name = item.getFieldName();
-                    try(InputStream stream = item.openStream()) {
-                        if (item.isFormField()) {
-                            switch (name) {
-                                case REQUEST_PARAM_SITEID:
-                                    siteId = Streams.asString(stream);
-                                    break;
-                                case REQUEST_PARAM_PROFILE_ID:
-                                    profileId = Streams.asString(stream);
-                                    break;
-                                case REQUEST_PARAM_PATH:
-                                    path = Streams.asString(stream);
-                                default:
-                                    // Unknown parameter, just skip it...
-                            }
-                        } else {
-                            String filename = item.getName();
-                            if (StringUtils.isNotEmpty(filename)) {
-                                filename = FilenameUtils.getName(filename);
-                            }
-                            result.setEntity(RESULT_KEY_ITEM,
-                                webDavService.upload(siteId, profileId, path, filename, stream));
-                            result.setResponse(ApiResponse.OK);
-                        }
-                    }
-                }
-                return result;
-            } catch (FileUploadException e) {
-                throw new InvalidParametersException("The request body is invalid");
-            }
-        } else {
+            InvalidParametersException, SiteNotFoundException, ConfigurationProfileNotFoundException, ValidationException {
+        if (!ServletFileUpload.isMultipartContent(request)) {
             throw new InvalidParametersException("The request is not multipart");
         }
+        ResultOne<WebDavItem> result = new ResultOne<>();
+        try {
+            ServletFileUpload upload = new ServletFileUpload();
+            FileItemIterator iterator = upload.getItemIterator(request);
+            String siteId = null;
+            String profileId = null;
+            String path = null;
+            if (!iterator.hasNext()) {
+                throw new InvalidParametersException("Request body is empty");
+            }
+            while (iterator.hasNext()) {
+                FileItemStream item = iterator.next();
+                String name = item.getFieldName();
+                try(InputStream stream = item.openStream()) {
+                    if (item.isFormField()) {
+                        switch (name) {
+                            case REQUEST_PARAM_SITEID:
+                                siteId = Streams.asString(stream);
+                                break;
+                            case REQUEST_PARAM_PROFILE_ID:
+                                profileId = Streams.asString(stream);
+                                break;
+                            case REQUEST_PARAM_PATH:
+                                path = Streams.asString(stream);
+                            default:
+                                // Unknown parameter, just skip it...
+                        }
+                    } else {
+                        String filename = item.getName();
+                        if (StringUtils.isNotEmpty(filename)) {
+                            filename = FilenameUtils.getName(filename);
+                        }
+                        validateUploadParams(siteId, profileId, path, filename);
+                        result.setEntity(RESULT_KEY_ITEM,
+                            webDavService.upload(siteId, profileId, path, filename, stream));
+                        result.setResponse(ApiResponse.OK);
+                        return result;
+                    }
+                }
+            }
+            throw new InvalidParametersException("No file was sent in the request body");
+        } catch (FileUploadException e) {
+            throw new InvalidParametersException("The request body is invalid");
+        }
+    }
+
+    private void validateUploadParams(String siteId, String profileId, String path, String filename) throws ValidationException {
+        Validator pathValidator = new EsapiValidator(CONTENT_PATH_WRITE);
+        validateValue(new EsapiValidator(SITE_ID), siteId, REQUEST_PARAM_SITE_ID);
+        validateValue(pathValidator, filename, "filename");
+        validateValue(pathValidator, path, REQUEST_PARAM_PATH);
+        validateValue(new SecurePathValidator(), path, REQUEST_PARAM_PATH);
+        validateValue(new NoTagsValidator(), profileId, REQUEST_PARAM_PROFILE_ID);
     }
 
 }

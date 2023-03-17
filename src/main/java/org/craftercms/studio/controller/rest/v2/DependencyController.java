@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -28,24 +28,27 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
+import java.beans.ConstructorProperties;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.API_2;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.DEPENDENCIES;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.DEPENDENCY;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_HARD_DEPENDENCIES;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_ITEMS;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_SOFT_DEPENDENCIES;
+import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.*;
+import static org.craftercms.studio.controller.rest.v2.ResultConstants.*;
 
 @RestController
 @RequestMapping(API_2 + DEPENDENCY)
 public class DependencyController {
 
-    private DependencyService dependencyService;
+    private final DependencyService dependencyService;
 
+    @ConstructorProperties({"dependencyService"})
+    public DependencyController(final DependencyService dependencyService) {
+        this.dependencyService = dependencyService;
+    }
+
+    @Valid
     @PostMapping(DEPENDENCIES)
     public ResponseBody getSoftDependencies(@RequestBody @Valid GetSoftDependenciesRequestBody request)
             throws ServiceLayerException {
@@ -56,21 +59,13 @@ public class DependencyController {
                 softDeps.stream().filter(sd -> !hardDeps.contains(sd)).collect(Collectors.toList());
 
         ResponseBody responseBody = new ResponseBody();
-        ResultOne<Map<String, List<String>>> result = new ResultOne<Map<String, List<String>>>();
+        ResultOne<Map<String, List<String>>> result = new ResultOne<>();
         result.setResponse(ApiResponse.OK);
-        Map<String, List<String>> items = new HashMap<String, List<String>>();
+        Map<String, List<String>> items = new HashMap<>();
         items.put(RESULT_KEY_HARD_DEPENDENCIES, hardDeps);
         items.put(RESULT_KEY_SOFT_DEPENDENCIES, filteredSoftDeps);
         result.setEntity(RESULT_KEY_ITEMS, items);
         responseBody.setResult(result);
         return responseBody;
-    }
-
-    public DependencyService getDependencyService() {
-        return dependencyService;
-    }
-
-    public void setDependencyService(DependencyService dependencyService) {
-        this.dependencyService = dependencyService;
     }
 }

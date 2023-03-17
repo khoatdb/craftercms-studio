@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -16,110 +16,93 @@
 
 package org.craftercms.studio.controller.rest.v2;
 
-import org.apache.commons.collections.CollectionUtils;
+
+import org.craftercms.commons.validation.annotations.param.EsapiValidatedParam;
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+import org.craftercms.commons.validation.annotations.param.ValidateNoTagsParam;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
-import org.craftercms.studio.api.v1.service.site.SiteService;
 import org.craftercms.studio.api.v2.dal.DeploymentHistoryGroup;
 import org.craftercms.studio.api.v2.dal.PublishStatus;
 import org.craftercms.studio.api.v2.dal.PublishingPackage;
 import org.craftercms.studio.api.v2.dal.PublishingPackageDetails;
+import org.craftercms.studio.api.v2.exception.PublishingPackageNotFoundException;
+import org.craftercms.studio.api.v2.repository.RepositoryChanges;
 import org.craftercms.studio.api.v2.service.publish.PublishService;
 import org.craftercms.studio.api.v2.service.site.SitesService;
-import org.craftercms.studio.model.rest.CancelPublishingPackagesRequest;
-import org.craftercms.studio.model.rest.ClearPublishingLockRequest;
-import org.craftercms.studio.model.rest.PaginatedResultList;
 import org.craftercms.studio.model.rest.ResponseBody;
-import org.craftercms.studio.model.rest.Result;
-import org.craftercms.studio.model.rest.ResultOne;
+import org.craftercms.studio.model.rest.*;
 import org.craftercms.studio.model.rest.publish.AvailablePublishingTargets;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.PositiveOrZero;
+import java.beans.ConstructorProperties;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_DAYS;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_ENVIRONMENT;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_FILTER_TYPE;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_LIMIT;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_NUM;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_OFFSET;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_PACKAGE_ID;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_PATH;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_SITEID;
-import static org.craftercms.studio.controller.rest.v2.RequestConstants.REQUEST_PARAM_STATES;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.API_2;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.AVAILABLE_TARGETS;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.CANCEL;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.CLEAR_LOCK;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.HISTORY;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.PACKAGE;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.PACKAGES;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.PUBLISH;
-import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.STATUS;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_PACKAGE;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_PACKAGES;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_PUBLISH_HISTORY;
-import static org.craftercms.studio.controller.rest.v2.ResultConstants.RESULT_KEY_PUBLISH_STATUS;
+import static org.apache.commons.collections.CollectionUtils.isEmpty;
+import static org.craftercms.commons.validation.annotations.param.EsapiValidationType.ALPHANUMERIC;
+import static org.craftercms.studio.controller.rest.v2.RequestConstants.*;
+import static org.craftercms.studio.controller.rest.v2.RequestMappingConstants.*;
+import static org.craftercms.studio.controller.rest.v2.ResultConstants.*;
+import static org.craftercms.studio.model.rest.ApiResponse.COMPLETED_WITH_ERRORS;
 import static org.craftercms.studio.model.rest.ApiResponse.OK;
 import static org.springframework.util.MimeTypeUtils.APPLICATION_JSON_VALUE;
 
+@Validated
 @RestController
 @RequestMapping(API_2 + PUBLISH)
 public class PublishController {
 
-    private PublishService publishService;
-    private SiteService siteService;
-    private SitesService sitesService;
+    private final PublishService publishService;
+    private final SitesService sitesService;
+
+    @ConstructorProperties({"publishService", "sitesService"})
+    public PublishController(final PublishService publishService, final SitesService sitesService) {
+        this.publishService = publishService;
+        this.sitesService = sitesService;
+    }
 
     @GetMapping(PACKAGES)
-    public ResponseBody getPublishingPackages(@RequestParam(name = REQUEST_PARAM_SITEID) String siteId,
-                                              @RequestParam(name = REQUEST_PARAM_ENVIRONMENT, required = false)
-                                                      String environment,
-                                              @RequestParam(name = REQUEST_PARAM_PATH, required = false) String path,
-                                              @RequestParam(name = REQUEST_PARAM_STATES, required = false)
-                                                          List<String> states,
-                                              @RequestParam(name = REQUEST_PARAM_OFFSET, required = false,
-                                                      defaultValue = "0") int offset,
-                                              @RequestParam(name = REQUEST_PARAM_LIMIT, required = false,
-                                                      defaultValue = "10") int limit) throws SiteNotFoundException {
-        if (!siteService.exists(siteId)) {
-            throw new SiteNotFoundException(siteId);
-        }
+    public PaginatedResultList<PublishingPackage> getPublishingPackages(@ValidSiteId
+                                                                        @RequestParam(name = REQUEST_PARAM_SITEID) String siteId,
+                                                                        @EsapiValidatedParam(type = ALPHANUMERIC)
+                                                                        @RequestParam(name = REQUEST_PARAM_ENVIRONMENT, required = false)
+                                                                        String environment,
+                                                                        @ValidExistingContentPath
+                                                                        @RequestParam(name = REQUEST_PARAM_PATH, required = false) String path,
+                                                                        @RequestParam(name = REQUEST_PARAM_STATES, required = false)
+                                                                        List<@ValidateNoTagsParam String> states,
+                                                                        @RequestParam(name = REQUEST_PARAM_OFFSET, required = false,
+                                                                                defaultValue = "0") @PositiveOrZero int offset,
+                                                                        @RequestParam(name = REQUEST_PARAM_LIMIT, required = false,
+                                                                                defaultValue = "10") @PositiveOrZero int limit) throws SiteNotFoundException {
         int total = publishService.getPublishingPackagesTotal(siteId, environment, path, states);
         List<PublishingPackage> packages = new ArrayList<>();
         if (total > 0) {
             packages = publishService.getPublishingPackages(siteId, environment, path, states, offset, limit);
         }
 
-        ResponseBody responseBody = new ResponseBody();
         PaginatedResultList<PublishingPackage> result = new PaginatedResultList<>();
         result.setTotal(total);
         result.setOffset(offset);
-        result.setLimit(CollectionUtils.isEmpty(packages) ? 0 : packages.size());
+        result.setLimit(isEmpty(packages) ? 0 : packages.size());
         result.setResponse(OK);
         result.setEntities(RESULT_KEY_PACKAGES, packages);
-        responseBody.setResult(result);
-        return responseBody;
+        return result;
     }
 
     @GetMapping(PACKAGE)
-    public ResponseBody getPublishingPackageDetails(@RequestParam(name = REQUEST_PARAM_SITEID) String siteId,
-                                                    @RequestParam(name = REQUEST_PARAM_PACKAGE_ID) String packageId)
-            throws SiteNotFoundException {
-        if (!siteService.exists(siteId)) {
-            throw new SiteNotFoundException(siteId);
-        }
+    public ResponseBody getPublishingPackageDetails(@ValidSiteId @RequestParam(name = REQUEST_PARAM_SITEID) String siteId,
+                                                    @RequestParam(name = REQUEST_PARAM_PACKAGE_ID) UUID packageId)
+            throws SiteNotFoundException, PublishingPackageNotFoundException {
         PublishingPackageDetails publishingPackageDetails =
-                publishService.getPublishingPackageDetails(siteId, packageId);
+                publishService.getPublishingPackageDetails(siteId, packageId.toString());
         ResponseBody responseBody = new ResponseBody();
         ResultOne<PublishingPackageDetails> result = new ResultOne<>();
         result.setEntity(RESULT_KEY_PACKAGE, publishingPackageDetails);
@@ -130,12 +113,9 @@ public class PublishController {
 
     @PostMapping(CANCEL)
     public ResponseBody cancelPublishingPackages(
-            @RequestBody CancelPublishingPackagesRequest cancelPublishingPackagesRequest)
+            @Valid @RequestBody CancelPublishingPackagesRequest cancelPublishingPackagesRequest)
             throws ServiceLayerException, UserNotFoundException {
         String siteId = cancelPublishingPackagesRequest.getSiteId();
-        if (!siteService.exists(siteId)) {
-            throw new SiteNotFoundException(siteId);
-        }
         publishService.cancelPublishingPackages(siteId, cancelPublishingPackagesRequest.getPackageIds());
         ResponseBody responseBody = new ResponseBody();
         Result result = new Result();
@@ -145,11 +125,8 @@ public class PublishController {
     }
 
     @GetMapping(STATUS)
-    public ResponseBody getPublishingStatus(@RequestParam(name = REQUEST_PARAM_SITEID) String siteId)
+    public ResponseBody getPublishingStatus(@ValidSiteId @RequestParam(name = REQUEST_PARAM_SITEID) String siteId)
             throws SiteNotFoundException {
-        if (!siteService.exists(siteId)) {
-            throw new SiteNotFoundException(siteId);
-        }
         PublishStatus status = sitesService.getPublishingStatus(siteId);
         ResponseBody responseBody = new ResponseBody();
         ResultOne<PublishStatus> result = new ResultOne<>();
@@ -160,12 +137,9 @@ public class PublishController {
     }
 
     @PostMapping(value = CLEAR_LOCK, consumes = APPLICATION_JSON_VALUE)
-    public ResponseBody clearPublishingLock(@RequestBody ClearPublishingLockRequest clearPublishingLockRequest)
+    public ResponseBody clearPublishingLock(@Valid @RequestBody ClearPublishingLockRequest clearPublishingLockRequest)
             throws SiteNotFoundException {
         String siteId = clearPublishingLockRequest.getSiteId();
-        if (!siteService.exists(siteId)) {
-            throw new SiteNotFoundException(siteId);
-        }
         sitesService.clearPublishingLock(siteId);
         ResponseBody responseBody = new ResponseBody();
         Result result = new Result();
@@ -175,34 +149,26 @@ public class PublishController {
     }
 
     @GetMapping(value = HISTORY, produces = APPLICATION_JSON_VALUE)
-    public ResponseBody getPublishingHistory(@RequestParam(name = REQUEST_PARAM_SITEID) String siteId,
-                                             @RequestParam(name = REQUEST_PARAM_DAYS) int daysFromToday,
-                                             @RequestParam(name = REQUEST_PARAM_NUM) int numberOfItems,
-                                             @RequestParam(name = REQUEST_PARAM_FILTER_TYPE, required = false,
-                                                     defaultValue = "page") String filterType)
+    public ResultList<DeploymentHistoryGroup> getPublishingHistory(@ValidSiteId @RequestParam(name = REQUEST_PARAM_SITEID) String siteId,
+                                                                   @PositiveOrZero @RequestParam(name = REQUEST_PARAM_DAYS) int daysFromToday,
+                                                                   @PositiveOrZero @RequestParam(name = REQUEST_PARAM_NUM) int numberOfItems,
+                                                                   @EsapiValidatedParam(type = ALPHANUMERIC) @RequestParam(name = REQUEST_PARAM_FILTER_TYPE, required = false,
+                                                                           defaultValue = "page") String filterType)
             throws SiteNotFoundException {
-        if (!siteService.exists(siteId)) {
-            throw new SiteNotFoundException(siteId);
-        }
         List<DeploymentHistoryGroup> history =
                 publishService.getDeploymentHistory(siteId, daysFromToday, numberOfItems, filterType);
-        ResponseBody responseBody = new ResponseBody();
         PaginatedResultList<DeploymentHistoryGroup> result = new PaginatedResultList<>();
         result.setResponse(OK);
         result.setEntities(RESULT_KEY_PUBLISH_HISTORY, history);
         result.setOffset(0);
         result.setLimit(history.size());
         result.setTotal(history.size());
-        responseBody.setResult(result);
-        return responseBody;
+        return result;
     }
 
     @GetMapping(value = AVAILABLE_TARGETS, produces = APPLICATION_JSON_VALUE)
-    public ResponseBody getAvailablePublishingTargets(@RequestParam(name = REQUEST_PARAM_SITEID) String siteId)
+    public ResponseBody getAvailablePublishingTargets(@ValidSiteId @RequestParam(name = REQUEST_PARAM_SITEID) String siteId)
             throws SiteNotFoundException {
-        if (!siteService.exists(siteId)) {
-            throw new SiteNotFoundException(siteId);
-        }
         var availableTargets = publishService.getAvailablePublishingTargets(siteId);
         var published = publishService.isSitePublished(siteId);
         AvailablePublishingTargets availablePublishingTargets = new AvailablePublishingTargets();
@@ -215,60 +181,27 @@ public class PublishController {
         return responseBody;
     }
 
-    @PostMapping("/all")
-    public ResponseBody publishAll(@Valid @RequestBody PublishAllRequest request)
-            throws ServiceLayerException, UserNotFoundException {
-        publishService.publishAll(request.getSiteId(), request.getPublishingTarget(), request.getSubmissionComment());
-
-        Result result = new Result();
+    @Valid
+    @GetMapping(value = HAS_INITIAL_PUBLISH, produces = APPLICATION_JSON_VALUE)
+    public ResponseBody hasInitialPublish(@ValidSiteId @RequestParam(name = REQUEST_PARAM_SITEID) String siteId)
+            throws SiteNotFoundException {
+        var published = publishService.isSitePublished(siteId);
+        ResponseBody responseBody = new ResponseBody();
+        ResultOne<Boolean> result = new ResultOne<>();
         result.setResponse(OK);
-        ResponseBody body = new ResponseBody();
-        body.setResult(result);
-        return body;
+        result.setEntity(RESULT_KEY_HAS_INITIAL_PUBLISH, published);
+        responseBody.setResult(result);
+        return responseBody;
     }
 
-    public void setPublishService(PublishService publishService) {
-        this.publishService = publishService;
-    }
-
-    public void setSiteService(SiteService siteService) {
-        this.siteService = siteService;
-    }
-
-    public void setSitesService(SitesService sitesService) {
-        this.sitesService = sitesService;
-    }
-
-    public static class PublishAllRequest {
-        @NotEmpty
-        protected String siteId;
-        @NotEmpty
-        protected String publishingTarget;
-        protected String submissionComment;
-
-        public String getSiteId() {
-            return siteId;
-        }
-
-        public void setSiteId(String siteId) {
-            this.siteId = siteId;
-        }
-
-        public String getPublishingTarget() {
-            return publishingTarget;
-        }
-
-        public void setPublishingTarget(String publishingTarget) {
-            this.publishingTarget = publishingTarget;
-        }
-
-        public String getSubmissionComment() {
-            return submissionComment;
-        }
-
-        public void setSubmissionComment(String submissionComment) {
-            this.submissionComment = submissionComment;
-        }
+    @PostMapping("/all")
+    public Result publishAll(@Valid @RequestBody PublishAllRequest request)
+            throws ServiceLayerException, UserNotFoundException {
+        RepositoryChanges changes = publishService.publishAll(request.getSiteId(), request.getPublishingTarget(), request.getSubmissionComment());
+        ApiResponse response = changes.getFailedPaths().isEmpty() ? OK : COMPLETED_WITH_ERRORS;
+        Result result = new Result();
+        result.setResponse(response);
+        return result;
     }
 
 }

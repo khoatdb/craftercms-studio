@@ -48,6 +48,7 @@
         <result property="recordLastUpdated" column="record_last_updated"/>
         <result property="groupName" column="group_name"/>
         <result property="groupDescription" column="group_description"/>
+        <result property="externallyManagedAsInt" column="externally_managed"/>
     </resultMap>
 
     <resultMap id="UserProperty" type="org.craftercms.studio.api.v2.dal.UserProperty">
@@ -77,7 +78,9 @@
             <bind name="pattern" value="'%' + keyword + '%'" />
             AND u.username like #{pattern}
         </if>
-        ORDER BY #{sort}
+        <if test="sort != null and sort != '' ">
+            ORDER BY ${sort}
+        </if>
         LIMIT #{offset}, #{limit}
     </select>
 
@@ -87,9 +90,11 @@
         WHERE u.deleted = 0
         <if test="keyword != null" >
             <bind name="pattern" value="'%' + keyword + '%'" />
-            AND u.username like #{pattern}
+            AND (u.username like #{pattern} OR u.first_name like #{pattern} OR u.last_name like #{pattern} OR u.email like #{pattern})
         </if>
-        ORDER BY #{sort}
+        <if test="sort != null and sort !=  '' ">
+            ORDER BY ${sort}
+        </if>
         LIMIT #{offset}, #{limit}
     </select>
 
@@ -105,7 +110,8 @@
 
     <update id="updateUser" parameterType="java.util.Map">
         UPDATE `user`
-        SET record_last_updated = CURRENT_TIMESTAMP
+        SET record_last_updated = CURRENT_TIMESTAMP,
+            enabled = #{enabled}
         <if test="firstName != null" >
             ,first_name = #{firstName}
         </if>

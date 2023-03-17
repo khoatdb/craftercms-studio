@@ -17,8 +17,10 @@
 package org.craftercms.studio.model.rest;
 
 import org.apache.commons.lang3.StringUtils;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
 
 import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.Size;
 
 public class PullFromRemoteRequest {
 
@@ -29,9 +31,11 @@ public class PullFromRemoteRequest {
     }
 
     @NotEmpty
+    @ValidSiteId
     private String siteId;
 
     @NotEmpty
+    @Size(max = 50)
     private String remoteName;
 
     @NotEmpty

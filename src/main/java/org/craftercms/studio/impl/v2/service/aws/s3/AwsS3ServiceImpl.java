@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -21,6 +21,7 @@ import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import org.apache.commons.lang3.StringUtils;
 import org.craftercms.commons.aws.S3ClientCachingFactory;
+import org.craftercms.commons.config.profiles.ConfigurationProfileNotFoundException;
 import org.craftercms.commons.config.profiles.aws.S3Profile;
 import org.craftercms.commons.lang.UrlUtils;
 import org.craftercms.commons.security.permissions.DefaultPermission;
@@ -28,7 +29,9 @@ import org.craftercms.commons.security.permissions.annotations.HasPermission;
 import org.craftercms.commons.security.permissions.annotations.ProtectedResourceId;
 import org.craftercms.commons.validation.annotations.param.ValidateStringParam;
 import org.craftercms.studio.api.v1.exception.AwsException;
+import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v1.service.aws.AbstractAwsService;
+import org.craftercms.studio.api.v1.service.site.SiteService;
 import org.craftercms.studio.api.v2.service.aws.s3.AwsS3Service;
 import org.craftercms.studio.api.v2.utils.StudioUtils;
 import org.craftercms.studio.impl.v1.service.aws.AwsUtils;
@@ -75,6 +78,11 @@ public class AwsS3ServiceImpl extends AbstractAwsService<S3Profile> implements A
      */
     protected String urlPattern;
 
+    /**
+     * Instance of {@link SiteService}
+     */
+    protected SiteService siteService;
+
     @Required
     public void setClientFactory(S3ClientCachingFactory clientFactory) {
         this.clientFactory = clientFactory;
@@ -103,11 +111,13 @@ public class AwsS3ServiceImpl extends AbstractAwsService<S3Profile> implements A
      */
     @Override
     @HasPermission(type = DefaultPermission.class, action = "s3 write")
-    public S3Item uploadItem(@ValidateStringParam(name = "siteId") @ProtectedResourceId("siteId") String siteId,
-                             @ValidateStringParam(name = "profileId") String profileId,
-                             @ValidateStringParam(name ="path") String path,
-                             @ValidateStringParam(name = "filename") String filename,
-                             InputStream content) throws AwsException {
+    public S3Item uploadItem(@ValidateStringParam @ProtectedResourceId("siteId") String siteId,
+                             @ValidateStringParam String profileId,
+                             @ValidateStringParam String path,
+                             @ValidateStringParam String filename,
+                             InputStream content) throws AwsException,
+            SiteNotFoundException, ConfigurationProfileNotFoundException {
+        siteService.checkSiteExists(siteId);
         S3Profile profile = getProfile(siteId, profileId);
         AmazonS3 s3Client = getS3Client(profile);
         String inputBucket = profile.getBucketName();
@@ -124,10 +134,12 @@ public class AwsS3ServiceImpl extends AbstractAwsService<S3Profile> implements A
      */
     @Override
     @HasPermission(type = DefaultPermission.class, action = "s3 read")
-    public List<S3Item> listItems(@ValidateStringParam(name = "siteId") @ProtectedResourceId("siteId") String siteId,
-                                  @ValidateStringParam(name = "profileId") String profileId,
-                                  @ValidateStringParam(name = "path") String path,
-                                  @ValidateStringParam(name = "type") String type) throws AwsException {
+    public List<S3Item> listItems(@ValidateStringParam @ProtectedResourceId("siteId") String siteId,
+                                  @ValidateStringParam String profileId,
+                                  @ValidateStringParam String path,
+                                  @ValidateStringParam String type) throws AwsException,
+            SiteNotFoundException, ConfigurationProfileNotFoundException {
+        siteService.checkSiteExists(siteId);
         S3Profile profile = getProfile(siteId, profileId);
         AmazonS3 client = getS3Client(profile);
         List<S3Item> items = new LinkedList<>();
@@ -178,6 +190,10 @@ public class AwsS3ServiceImpl extends AbstractAwsService<S3Profile> implements A
         } else {
             return stripStart(appendIfMissing(prefix, delimiter), delimiter);
         }
+    }
+
+    public void setSiteService(SiteService siteService) {
+        this.siteService = siteService;
     }
 
 }

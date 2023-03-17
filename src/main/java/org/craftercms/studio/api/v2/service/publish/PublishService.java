@@ -22,6 +22,8 @@ import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
 import org.craftercms.studio.api.v2.dal.DeploymentHistoryGroup;
 import org.craftercms.studio.api.v2.dal.PublishingPackage;
 import org.craftercms.studio.api.v2.dal.PublishingPackageDetails;
+import org.craftercms.studio.api.v2.exception.PublishingPackageNotFoundException;
+import org.craftercms.studio.api.v2.repository.RepositoryChanges;
 import org.craftercms.studio.model.publish.PublishingTarget;
 import org.craftercms.studio.model.rest.dashboard.PublishingDashboardItem;
 
@@ -72,7 +74,7 @@ public interface PublishService {
      *
      * @throws SiteNotFoundException site not found
      */
-    PublishingPackageDetails getPublishingPackageDetails(String siteId, String packageId) throws SiteNotFoundException;
+    PublishingPackageDetails getPublishingPackageDetails(String siteId, String packageId) throws SiteNotFoundException, PublishingPackageNotFoundException;
 
     /**
      * Cancel publishing packages
@@ -133,22 +135,24 @@ public interface PublishService {
      * @return
      */
     List<DeploymentHistoryGroup> getDeploymentHistory(String siteId, int daysFromToday, int numberOfItems,
-                                                      String filterType);
+                                                      String filterType) throws SiteNotFoundException;
 
     /**
      * Get available publishing targets for given site
      * @param siteId site identifier
      * @return list of available publishing targets
+     * @throws SiteNotFoundException Site doesn't exist
      */
-    List<PublishingTarget> getAvailablePublishingTargets(String siteId);
+    List<PublishingTarget> getAvailablePublishingTargets(String siteId) throws SiteNotFoundException;
 
     /**
      * Check if site has ever been published.
      *
      * @param siteId site identifier
      * @return true if site has been published at least once, otherwise false
+     * @throws SiteNotFoundException Site doesn't exist
      */
-    boolean isSitePublished(String siteId);
+    boolean isSitePublished(String siteId) throws SiteNotFoundException;
 
     /**
      * Publishes all changes for the given site & target
@@ -156,8 +160,9 @@ public interface PublishService {
      * @param siteId the id of the site
      * @param publishingTarget the publishing target
      * @param comment submission comment
+     * @return result of the publishing
      * @throws ServiceLayerException if there is any error during publishing
      */
-    void publishAll(String siteId, String publishingTarget, String comment) throws ServiceLayerException, UserNotFoundException;
+    RepositoryChanges publishAll(String siteId, String publishingTarget, String comment) throws ServiceLayerException, UserNotFoundException;
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -39,9 +39,6 @@ public final class ResultConstants {
     public static final String RESULT_KEY_ITEM = "item";
     public static final String RESULT_KEY_ITEMS = "items";
     public static final String RESULT_KEY_MENU_ITEMS = "menuItems";
-
-    public static final String RESULT_KEY_CLUSTER_MEMBER = "clusterMember";
-    public static final String RESULT_KEY_CLUSTER_MEMBERS = "clusterMembers";
 
     public static final String RESULT_KEY_ENVIRONMENT = "environment";
 
@@ -87,6 +84,7 @@ public final class ResultConstants {
     public static final String RESULT_KEY_PACKAGE = "package";
     public static final String RESULT_KEY_PUBLISH_STATUS = "publishingStatus";
     public static final String RESULT_KEY_PUBLISH_HISTORY = "documents";
+    public static final String RESULT_KEY_HAS_INITIAL_PUBLISH = "hasInitialPublish";
 
     /* Translation controller */
     public static final String RESULT_KEY_CONFIG = "config";
@@ -98,11 +96,14 @@ public final class ResultConstants {
     public static final String RESULT_KEY_ACTIVITIES = "activities";
     public static final String RESULT_KEY_PUBLISHING_PACKAGES = "publishingPackages";
     public static final String RESULT_KEY_PUBLISHING_PACKAGE_ITEMS = "publishingPackageItems";
+    public static final String RESULT_KEY_PUBLISHING_ITEMS = "publishingItems";
     public static final String RESULT_KEY_UNPUBLISHED_ITEMS = "unpublishedItems";
     public static final String RESULT_KEY_PUBLISHING_STATS = "publishingStats";
 
     /** Exception Handler */
     public static final String RESULT_KEY_PERSON = "person";
+
+    public static final String RESULT_KEY_VALIDATION_ERRORS = "validationErrors";
 
     private ResultConstants() { }
 }

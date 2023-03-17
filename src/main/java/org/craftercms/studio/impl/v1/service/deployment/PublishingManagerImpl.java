@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -15,64 +15,53 @@
  */
 package org.craftercms.studio.impl.v1.service.deployment;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.craftercms.commons.validation.annotations.param.ValidateParams;
 import org.craftercms.commons.validation.annotations.param.ValidateStringParam;
 import org.craftercms.studio.api.v1.constant.DmConstants;
 import org.craftercms.studio.api.v1.dal.PublishRequest;
 import org.craftercms.studio.api.v1.dal.PublishRequestMapper;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.craftercms.studio.api.v1.repository.ContentRepository;
 import org.craftercms.studio.api.v1.repository.RepositoryItem;
 import org.craftercms.studio.api.v1.service.configuration.ServicesConfig;
 import org.craftercms.studio.api.v1.service.content.ContentService;
 import org.craftercms.studio.api.v1.service.dependency.DependencyService;
 import org.craftercms.studio.api.v1.service.deployment.DeploymentException;
+import org.craftercms.studio.api.v1.service.deployment.DeploymentService;
+import org.craftercms.studio.api.v1.service.deployment.PublishingManager;
+import org.craftercms.studio.api.v1.to.DeploymentItemTO;
 import org.craftercms.studio.api.v2.dal.Item;
 import org.craftercms.studio.api.v2.dal.ItemState;
 import org.craftercms.studio.api.v2.dal.RetryingDatabaseOperationFacade;
 import org.craftercms.studio.api.v2.dal.Workflow;
-import org.craftercms.studio.api.v1.service.deployment.DeploymentService;
-import org.craftercms.studio.api.v1.service.deployment.PublishingManager;
-import org.craftercms.studio.api.v1.to.DeploymentItemTO;
 import org.craftercms.studio.api.v2.service.item.internal.ItemServiceInternal;
 import org.craftercms.studio.api.v2.service.workflow.internal.WorkflowServiceInternal;
 import org.craftercms.studio.api.v2.utils.StudioConfiguration;
 import org.craftercms.studio.impl.v1.util.ContentUtils;
 import org.craftercms.studio.impl.v2.utils.DateUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import javax.validation.Valid;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.ZonedDateTime;
+import java.util.*;
+
+import static java.util.Arrays.asList;
+import static java.util.Objects.isNull;
+import static org.apache.commons.lang3.StringUtils.*;
 import static org.craftercms.studio.api.v1.constant.StudioConstants.CONTENT_TYPE_FOLDER;
 import static org.craftercms.studio.api.v1.constant.StudioConstants.FILE_SEPARATOR;
 import static org.craftercms.studio.api.v1.dal.PublishRequest.State.PROCESSING;
 import static org.craftercms.studio.api.v1.dal.PublishRequest.State.READY_FOR_LIVE;
-import static org.craftercms.studio.api.v2.dal.ItemState.PUBLISH_TO_STAGE_AND_LIVE_OFF_MASK;
-import static org.craftercms.studio.api.v2.dal.ItemState.PUBLISH_TO_STAGE_AND_LIVE_ON_MASK;
-import static org.craftercms.studio.api.v2.dal.ItemState.PUBLISH_TO_STAGE_OFF_MASK;
-import static org.craftercms.studio.api.v2.dal.ItemState.PUBLISH_TO_STAGE_ON_MASK;
-import static org.craftercms.studio.api.v2.dal.QueryParameterNames.ENVIRONMENT;
-import static org.craftercms.studio.api.v2.dal.QueryParameterNames.PROCESSING_STATE;
-import static org.craftercms.studio.api.v2.dal.QueryParameterNames.READY_STATE;
-import static org.craftercms.studio.api.v2.dal.QueryParameterNames.SITE_ID;
+import static org.craftercms.studio.api.v2.dal.ItemState.*;
+import static org.craftercms.studio.api.v2.dal.QueryParameterNames.*;
 import static org.craftercms.studio.api.v2.utils.StudioConfiguration.CONFIGURATION_PUBLISHING_BLACKLIST_REGEX;
 import static org.craftercms.studio.api.v2.utils.StudioConfiguration.PUBLISHING_MANAGER_PUBLISHING_WITHOUT_DEPENDENCIES_ENABLED;
+import static org.craftercms.studio.impl.v1.util.ContentUtils.matchesPatterns;
 
 public class PublishingManagerImpl implements PublishingManager {
 
@@ -93,9 +82,9 @@ public class PublishingManagerImpl implements PublishingManager {
     protected RetryingDatabaseOperationFacade retryingDatabaseOperationFacade;
 
     @Override
-    @ValidateParams
-    public List<PublishRequest> getItemsReadyForDeployment(@ValidateStringParam(name = "site") String site,
-                                           @ValidateStringParam(name = "environment") String environment) {
+    @Valid
+    public List<PublishRequest> getItemsReadyForDeployment(@ValidateStringParam String site,
+                                           @ValidateStringParam String environment) {
         Map<String, Object> params = new HashMap<>();
         params.put("site", site);
         params.put("state", READY_FOR_LIVE);
@@ -103,6 +92,35 @@ public class PublishingManagerImpl implements PublishingManager {
         params.put("now", DateUtils.getCurrentTime());
         return publishRequestMapper.getItemsReadyForDeployment(params);
     }
+
+    /**
+     * Indicates if environment is the live/prod environment
+     * for the given site
+     * @param site the site id
+     * @param env the publishing environment
+     * @return true if env is the live environment for the site
+     */
+    private boolean isLiveEnv(final String site, final String env) {
+        String liveEnvironment = LIVE_ENVIRONMENT;
+
+        if (servicesConfig.isStagingEnvironmentEnabled(site)) {
+            liveEnvironment = servicesConfig.getLiveEnvironment(site);
+        }
+
+        boolean isLive = false;
+
+        if (isNotEmpty(liveEnvironment)) {
+            if (liveEnvironment.equals(env)) {
+                isLive = true;
+            }
+        } else if (equalsIgnoreCase(LIVE_ENVIRONMENT, env) ||
+                equalsIgnoreCase(PRODUCTION_ENVIRONMENT, env)) {
+            isLive = true;
+        }
+
+        return isLive;
+    }
+
 
     @Override
     public DeploymentItemTO processItem(PublishRequest item)
@@ -125,77 +143,10 @@ public class PublishingManagerImpl implements PublishingManager {
         String action = item.getAction();
         String user = item.getUser();
 
-        String liveEnvironment = LIVE_ENVIRONMENT;
-
-        if (servicesConfig.isStagingEnvironmentEnabled(site)) {
-            liveEnvironment = servicesConfig.getLiveEnvironment(site);
-        }
-
-        boolean isLive = false;
-
-        if (isNotEmpty(liveEnvironment)) {
-            if (liveEnvironment.equals(environment)) {
-                isLive = true;
-            }
-        }
-        else if (StringUtils.equalsIgnoreCase(LIVE_ENVIRONMENT, item.getEnvironment()) ||
-                StringUtils.equalsIgnoreCase(PRODUCTION_ENVIRONMENT, environment)) {
-            isLive = true;
-        }
+        boolean isLive = isLiveEnv(site, environment);
 
         if (StringUtils.equals(action, PublishRequest.Action.DELETE)) {
-            // Only try to delete oldPath if it exists, this covers the case of move/rename & delete something new
-            if (isNotEmpty(oldPath) && contentService.contentExists(site, oldPath)) {
-                contentService.deleteContent(site, oldPath, user);
-                boolean hasRenamedChildren = false;
-
-                if (oldPath.endsWith(FILE_SEPARATOR + DmConstants.INDEX_FILE)) {
-                    if (contentService.contentExists(site,
-                            oldPath.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""))) {
-                        // TODO: SJ: This bypasses the Content Service, fix
-                        RepositoryItem[] children = contentRepository.getContentChildren(
-                                site, oldPath.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""));
-
-                        if (children.length > 1) {
-                            hasRenamedChildren = true;
-                        }
-                    }
-                    if (!hasRenamedChildren) {
-                        deleteFolder(site,
-                                oldPath.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""), user);
-                    }
-                }
-                deploymentItem.setMove(true);
-                deploymentItem.setOldPath(oldPath);
-                if (isLive) {
-                    itemServiceInternal.clearPreviousPath(site, path);
-                }
-            }
-
-
-            boolean hasChildren = false;
-
-            if (item.getPath().endsWith(FILE_SEPARATOR + DmConstants.INDEX_FILE)) {
-                if (contentService.contentExists(site,
-                        path.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""))) {
-                    // TODO: SJ: This bypasses the Content Service, fix
-                    RepositoryItem[] children = contentRepository.getContentChildren(site,
-                            path.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""));
-
-                    if (children.length > 1) {
-                        hasChildren = true;
-                    }
-                }
-            }
-
-            if (contentService.contentExists(site, path)) {
-                contentService.deleteContent(site, path, user);
-
-                if (!hasChildren) {
-                    deleteFolder(site, path.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""), user);
-                }
-            }
-            deploymentItem.setDelete(true);
+            processDeleteItem(item, deploymentItem, site, path, oldPath, user, isLive);
         } else {
             if (StringUtils.equals(action, PublishRequest.Action.MOVE)) {
                 deploymentItem.setMove(true);
@@ -206,50 +157,129 @@ public class PublishingManagerImpl implements PublishingManager {
                     }
                 }
             }
-
             Workflow workflowEntry =
                     workflowServiceInternal.getWorkflowEntry(site, path, deploymentItem.getPackageId());
-
-            if (workflowEntry == null) {
-                if (contentService.contentExists(site, path)) {
-                    Item it = itemServiceInternal.getItem(site, path, true);
-                    if (Objects.nonNull(it)) {
-                        if (isLive) {
-                            itemServiceInternal.updateStateBits(site, path, PUBLISH_TO_STAGE_AND_LIVE_ON_MASK,
-                                    PUBLISH_TO_STAGE_AND_LIVE_OFF_MASK);
-                            itemServiceInternal.clearPreviousPath(site, path);
-                        } else {
-                            itemServiceInternal.updateStateBits(site, path, PUBLISH_TO_STAGE_ON_MASK, PUBLISH_TO_STAGE_OFF_MASK);
-                        }
-                    } else {
-                        logger.warn("Item in site '{}' path '{}' doesn't exist in the database, but it does exist " +
-                                "in git. This may cause problems in the publishing target '{}'",
-                                site, path, environment);
-                    }
-                } else {
-                    logger.warn("Item in site '{}' path '{}' doesn't exist in the database nor the git repository. " +
-                            "Skipping publishing of this item.", site, path);
-                    return null;
-                }
-            } else {
-                if (isLive) {
-                    itemServiceInternal.updateStateBits(site, path, PUBLISH_TO_STAGE_AND_LIVE_ON_MASK,
-                            PUBLISH_TO_STAGE_AND_LIVE_OFF_MASK);
-                    itemServiceInternal.clearPreviousPath(site, path);
-                } else {
-                    itemServiceInternal.updateStateBits(site, path, PUBLISH_TO_STAGE_ON_MASK, PUBLISH_TO_STAGE_OFF_MASK);
-                }
+            if (workflowEntry == null && !contentService.contentExists(site, path)) {
+                logger.warn("Item in site '{}' path '{}' doesn't exist in the database nor the git repository. " +
+                        "Skipping publishing of this item.", site, path);
+                deploymentItem = null;
             }
-            String blacklistConfig = studioConfiguration.getProperty(CONFIGURATION_PUBLISHING_BLACKLIST_REGEX);
-            if (isNotEmpty(blacklistConfig) &&
-                    ContentUtils.matchesPatterns(item.getPath(), Arrays.asList(StringUtils.split(blacklistConfig, ",")))) {
+            if (isPathBlackListed(item.getPath())) {
                 logger.debug("The file in site '{}' path '{}' matches the publishing blacklist and will not be " +
                                 "published", site, item.getPath());
+                // TODO: JM: Should these be marked as CANCELLED instead of COMPLETED ?
                 markItemsCompleted(site, item.getEnvironment(), List.of(item));
                 deploymentItem = null;
             }
         }
         return deploymentItem;
+    }
+
+    @Override
+    public void setPublishedState(String site, String environment, List<PublishRequest> items) {
+        boolean isLive = isLiveEnv(site, environment);
+        items.forEach(publishRequest -> {
+            String path = publishRequest.getPath();
+            Workflow workflowEntry =
+                    workflowServiceInternal.getWorkflowEntry(site, path, publishRequest.getPackageId());
+            if (workflowEntry != null) {
+                setPublishedState(path, site, isLive);
+                return;
+            }
+            if (!contentService.contentExists(site, path)) {
+                logger.warn("Item in site '{}' path '{}' doesn't exist in the database nor the git repository. " +
+                        "Skipping publishing of this item.", site, path);
+                return;
+            }
+            Item it = itemServiceInternal.getItem(site, path, true);
+            if (isNull(it)) {
+                logger.warn("Item in site '{}' path '{}' doesn't exist in the database, but it does exist " +
+                                "in git. This may cause problems in the publishing target '{}'",
+                        site, path, environment);
+            } else {
+                setPublishedState(path, site, isLive);
+            }
+        });
+    }
+
+    private void setPublishedState(String path, String site, boolean isLive) {
+        if (isLive) {
+            itemServiceInternal.updateStateBits(site, path, PUBLISH_TO_STAGE_AND_LIVE_ON_MASK,
+                    PUBLISH_TO_STAGE_AND_LIVE_OFF_MASK);
+            itemServiceInternal.clearPreviousPath(site, path);
+        } else {
+            itemServiceInternal.updateStateBits(site, path, PUBLISH_TO_STAGE_ON_MASK, PUBLISH_TO_STAGE_OFF_MASK);
+        }
+    }
+
+    /**
+     * Processes a deleted {@link PublishRequest}
+     */
+    private void processDeleteItem(PublishRequest item, DeploymentItemTO deploymentItem, String site, String path, String oldPath, String user, boolean isLive) throws ServiceLayerException, UserNotFoundException {
+        // Only try to delete oldPath if it exists, this covers the case of move/rename & delete something new
+        if (isNotEmpty(oldPath) && contentService.contentExists(site, oldPath)) {
+            contentService.deleteContent(site, oldPath, user);
+            boolean hasRenamedChildren = false;
+
+            if (oldPath.endsWith(FILE_SEPARATOR + DmConstants.INDEX_FILE)) {
+                if (contentService.contentExists(site,
+                        oldPath.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""))) {
+                    // TODO: SJ: This bypasses the Content Service, fix
+                    RepositoryItem[] children = contentRepository.getContentChildren(
+                            site, oldPath.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""));
+
+                    if (children.length > 1) {
+                        hasRenamedChildren = true;
+                    }
+                }
+                if (!hasRenamedChildren) {
+                    deleteFolder(site,
+                            oldPath.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""), user);
+                }
+            }
+            deploymentItem.setMove(true);
+            deploymentItem.setOldPath(oldPath);
+            if (isLive) {
+                itemServiceInternal.clearPreviousPath(site, path);
+            }
+        }
+
+
+        boolean hasChildren = false;
+
+        if (item.getPath().endsWith(FILE_SEPARATOR + DmConstants.INDEX_FILE)) {
+            if (contentService.contentExists(site,
+                    path.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""))) {
+                // TODO: SJ: This bypasses the Content Service, fix
+                RepositoryItem[] children = contentRepository.getContentChildren(site,
+                        path.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""));
+
+                if (children.length > 1) {
+                    hasChildren = true;
+                }
+            }
+        }
+
+        if (contentService.contentExists(site, path)) {
+            contentService.deleteContent(site, path, user);
+
+            if (!hasChildren) {
+                deleteFolder(site, path.replace(FILE_SEPARATOR + DmConstants.INDEX_FILE, ""), user);
+            }
+        }
+        deploymentItem.setDelete(true);
+    }
+
+    /**
+     * Indicates if the given path matches the configured publishing blacklist regex.
+     * Blacklisted paths should NOT be published
+     * @param path path to be published
+     * @return true if the path is blacklisted
+     */
+    private boolean isPathBlackListed(final String path) {
+        String blacklistConfig = studioConfiguration.getProperty(CONFIGURATION_PUBLISHING_BLACKLIST_REGEX);
+        return isNotEmpty(blacklistConfig) &&
+                matchesPatterns(path, asList(split(blacklistConfig, ",")));
     }
 
     private void deleteFolder(String site, String path, String user) throws ServiceLayerException, UserNotFoundException {
@@ -270,10 +300,10 @@ public class PublishingManagerImpl implements PublishingManager {
     }
 
     @Override
-    @ValidateParams
-    public void markItemsCompleted(@ValidateStringParam(name = "site") String site,
-                                   @ValidateStringParam(name = "environment") String environment,
-                                   List<PublishRequest> processedItems) throws DeploymentException {
+    @Valid
+    public void markItemsCompleted(@ValidateStringParam String site,
+                                   @ValidateStringParam String environment,
+                                   List<PublishRequest> processedItems) {
         ZonedDateTime publishedOn = DateUtils.getCurrentTime();
         for (PublishRequest item : processedItems) {
             item.setState(PublishRequest.State.COMPLETED);
@@ -283,10 +313,10 @@ public class PublishingManagerImpl implements PublishingManager {
     }
 
     @Override
-    @ValidateParams
-    public void markItemsProcessing(@ValidateStringParam(name = "site") String site,
-                                    @ValidateStringParam(name = "environment") String environment,
-                                    List<PublishRequest> itemsToDeploy) throws DeploymentException {
+    @Valid
+    public void markItemsProcessing(@ValidateStringParam String site,
+                                    @ValidateStringParam String environment,
+                                    List<PublishRequest> itemsToDeploy) {
         for (PublishRequest item : itemsToDeploy) {
             item.setState(PublishRequest.State.PROCESSING);
             retryingDatabaseOperationFacade.retry(() -> publishRequestMapper.updateItemDeploymentState(item));
@@ -294,10 +324,10 @@ public class PublishingManagerImpl implements PublishingManager {
     }
 
     @Override
-    @ValidateParams
-    public void markItemsReady(@ValidateStringParam(name = "site") String site,
-                               @ValidateStringParam(name = "environment") String environment,
-                               List<PublishRequest> copyToEnvironmentItems) throws DeploymentException {
+    @Valid
+    public void markItemsReady(@ValidateStringParam String site,
+                               @ValidateStringParam String environment,
+                               List<PublishRequest> copyToEnvironmentItems) {
         for (PublishRequest item : copyToEnvironmentItems) {
             item.setState(READY_FOR_LIVE);
             retryingDatabaseOperationFacade.retry(() -> publishRequestMapper.updateItemDeploymentState(item));
@@ -305,10 +335,10 @@ public class PublishingManagerImpl implements PublishingManager {
     }
 
     @Override
-    @ValidateParams
-    public void markItemsBlocked(@ValidateStringParam(name = "site") String site,
-                                 @ValidateStringParam(name = "environment") String environment,
-                                 List<PublishRequest> copyToEnvironmentItems) throws DeploymentException {
+    @Valid
+    public void markItemsBlocked(@ValidateStringParam String site,
+                                 @ValidateStringParam String environment,
+                                 List<PublishRequest> copyToEnvironmentItems) {
         for (PublishRequest item : copyToEnvironmentItems) {
             item.setState(PublishRequest.State.BLOCKED);
             retryingDatabaseOperationFacade.retry(() -> publishRequestMapper.updateItemDeploymentState(item));
@@ -326,7 +356,7 @@ public class PublishingManagerImpl implements PublishingManager {
 
         if (StringUtils.equals(item.getAction(), PublishRequest.Action.NEW) ||
                 StringUtils.equals(item.getAction(), PublishRequest.Action.MOVE)) {
-            if (ContentUtils.matchesPatterns(path, servicesConfig.getPagePatterns(site))) {
+            if (matchesPatterns(path, servicesConfig.getPagePatterns(site))) {
                 Path p = Paths.get(path);
                 List<Path> parts = new LinkedList<>();
                 if (Objects.nonNull(p.getParent())) {
@@ -424,30 +454,30 @@ public class PublishingManagerImpl implements PublishingManager {
     }
 
     @Override
-    @ValidateParams
-    public boolean isPublishingBlocked(@ValidateStringParam(name = "site") String site) {
+    @Valid
+    public boolean isPublishingBlocked(@ValidateStringParam String site) {
         Map<String, Object> params = new HashMap<>();
         params.put("site", site);
         params.put("now", DateUtils.getCurrentTime());
         params.put("state", PublishRequest.State.BLOCKED);
-        Integer result = publishRequestMapper.isPublishingBlocked(params);
+        int result = publishRequestMapper.isPublishingBlocked(params);
         return result > 0;
     }
 
     @Override
-    @ValidateParams
-    public boolean hasPublishingQueuePackagesReady(@ValidateStringParam(name = "site") String site) {
+    @Valid
+    public boolean hasPublishingQueuePackagesReady(@ValidateStringParam String site) {
         Map<String, Object> params = new HashMap<>();
         params.put("site", site);
         params.put("now", DateUtils.getCurrentTime());
         params.put("state", READY_FOR_LIVE);
-        Integer result = publishRequestMapper.isPublishingBlocked(params);
+        int result = publishRequestMapper.isPublishingBlocked(params);
         return result > 0;
     }
 
     @Override
-    @ValidateParams
-    public String getPublishingStatus(@ValidateStringParam(name = "site") String site) {
+    @Valid
+    public String getPublishingStatus(@ValidateStringParam String site) {
         Map<String, Object> params = new HashMap<>();
         params.put("site", site);
         params.put("now", DateUtils.getCurrentTime());
@@ -463,20 +493,20 @@ public class PublishingManagerImpl implements PublishingManager {
     }
 
     @Override
-    @ValidateParams
-    public boolean isPublishingQueueEmpty(@ValidateStringParam(name = "site") String site) {
+    @Valid
+    public boolean isPublishingQueueEmpty(@ValidateStringParam String site) {
         Map<String, Object> params = new HashMap<>();
         params.put("site", site);
         params.put("now", DateUtils.getCurrentTime());
         params.put("state", READY_FOR_LIVE);
-        Integer result = publishRequestMapper.isPublishingQueueEmpty(params);
+        int result = publishRequestMapper.isPublishingQueueEmpty(params);
         return result < 1;
     }
 
     @Override
-    @ValidateParams
-    public void resetProcessingQueue(@ValidateStringParam(name = "site") String site,
-                                        @ValidateStringParam(name = "environment") String environment) {
+    @Valid
+    public void resetProcessingQueue(@ValidateStringParam String site,
+                                        @ValidateStringParam String environment) {
         Map<String, String> params = new HashMap<>();
         params.put(SITE_ID, site);
         params.put(ENVIRONMENT, environment);

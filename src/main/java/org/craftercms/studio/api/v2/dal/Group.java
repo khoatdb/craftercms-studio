@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -18,12 +18,15 @@ package org.craftercms.studio.api.v2.dal;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.craftercms.commons.validation.annotations.param.EsapiValidatedParam;
 import org.springframework.security.core.GrantedAuthority;
 
-import javax.validation.constraints.NotNull;
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 import java.io.Serializable;
 import java.time.ZonedDateTime;
+
+import static org.craftercms.commons.validation.annotations.param.EsapiValidationType.GROUP_NAME;
 
 public class Group implements Serializable, GrantedAuthority {
 
@@ -32,8 +35,10 @@ public class Group implements Serializable, GrantedAuthority {
     private long id = -1;
     private ZonedDateTime recordLastUpdated;
     private Organization organization;
-    @NotNull
-    @Size(max=512)
+    private boolean externallyManaged;
+    @NotBlank
+    @Size(min = 3, max = 512)
+    @EsapiValidatedParam(type = GROUP_NAME)
     private String groupName;
     @Size(max=1024)
     private String groupDescription;
@@ -92,6 +97,26 @@ public class Group implements Serializable, GrantedAuthority {
     @JsonProperty("desc")
     public void setGroupDescription(String groupDescription) {
         this.groupDescription = groupDescription;
+    }
+
+    @JsonProperty("externallyManaged")
+    public boolean isExternallyManaged() {
+        return externallyManaged;
+    }
+
+    @JsonProperty("externallyManaged")
+    public void setExternallyManaged(boolean externallyManaged) {
+        this.externallyManaged = externallyManaged;
+    }
+
+    @JsonIgnore
+    public int getExternallyManagedAsInt() {
+        return externallyManaged ? 1 : 0;
+    }
+
+    @JsonIgnore
+    public void setExternallyManagedAsInt(int externallyManaged) {
+        this.externallyManaged = externallyManaged > 0;
     }
 
 }

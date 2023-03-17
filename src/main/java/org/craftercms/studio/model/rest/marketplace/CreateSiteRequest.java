@@ -16,15 +16,15 @@
 
 package org.craftercms.studio.model.rest.marketplace;
 
-import java.util.HashMap;
-import java.util.Map;
+import org.craftercms.commons.plugin.model.Version;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
 
-
+import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
-
-import org.craftercms.commons.plugin.model.Version;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import javax.validation.constraints.Size;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Holds the information needed to create a site from a Marketplace Blueprint
@@ -38,14 +38,17 @@ public class CreateSiteRequest {
     private String blueprintId;
 
     @NotNull
+    @Valid
     private Version blueprintVersion;
 
     @NotBlank
+    @ValidSiteId
     private String siteId;
 
     private String description;
 
     @NotBlank
+    @Size(max=255)
     private String name;
 
     private Map<String, String> siteParams = new HashMap<>();

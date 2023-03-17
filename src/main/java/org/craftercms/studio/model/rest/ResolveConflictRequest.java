@@ -16,10 +16,21 @@
 
 package org.craftercms.studio.model.rest;
 
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+import org.craftercms.commons.validation.annotations.param.ValidateStringParam;
+
+import javax.validation.constraints.NotEmpty;
+
 public class ResolveConflictRequest {
 
+    @NotEmpty
+    @ValidSiteId
     private String siteId;
+    @NotEmpty
+    @ValidExistingContentPath
     private String path;
+    @ValidateStringParam(whitelistedPatterns = "ours|theirs")
     private String resolution;
 
     public String getSiteId() {

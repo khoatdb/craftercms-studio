@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -18,6 +18,7 @@ package org.craftercms.studio.impl.v1.service.aws;
 
 import java.io.InputStream;
 
+import org.craftercms.commons.config.profiles.ConfigurationProfileNotFoundException;
 import org.craftercms.commons.validation.annotations.param.ValidateStringParam;
 import org.craftercms.studio.api.v1.aws.mediaconvert.MediaConvert;
 import org.craftercms.studio.api.v1.aws.mediaconvert.MediaConvertJob;
@@ -51,10 +52,10 @@ public class MediaConvertServiceImpl extends AbstractAwsService<MediaConvertProf
      * {@inheritDoc}
      */
     @Override
-    public MediaConvertJob startJob(final @ValidateStringParam(name = "site") String site,
-                                    final @ValidateStringParam(name = "profile") String profileId,
-                                    final @ValidateStringParam(name = "filename") String filename,
-                                    final InputStream content) throws AwsException {
+    public MediaConvertJob startJob(final @ValidateStringParam String site,
+                                    final @ValidateStringParam String profileId,
+                                    final @ValidateStringParam String filename,
+                                    final InputStream content) throws AwsException, ConfigurationProfileNotFoundException {
 
         MediaConvertProfile profile = getProfile(site, profileId);
 

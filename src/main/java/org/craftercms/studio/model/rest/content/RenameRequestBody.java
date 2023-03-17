@@ -16,15 +16,22 @@
 
 package org.craftercms.studio.model.rest.content;
 
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidNewContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+
 import javax.validation.constraints.NotEmpty;
 
 public class RenameRequestBody {
 
     @NotEmpty
+    @ValidSiteId
     private String siteId;
     @NotEmpty
+    @ValidExistingContentPath
     private String path;
     @NotEmpty
+    @ValidNewContentPath
     private String name;
 
     public String getSiteId() {

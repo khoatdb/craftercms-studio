@@ -4,7 +4,7 @@ servers:
 info:
   description: |-
     Crafter Studio API v2
-  version: '4.0.2.0'
+  version: '4.0.3.0'
   title: Crafter Studio
   termsOfService: ''
   contact:
@@ -34,8 +34,6 @@ tags:
     description: Audit log operations
   - name: monitoring
     description: Monitoring operations
-  - name: cmis
-    description: CMIS operations
   - name: repository
     description: Repository operations
   - name: content
@@ -56,12 +54,12 @@ tags:
     description: Security operations
   - name: dashboard
     description: Dashboard operations
-  - name: translation
-    description: Translation operations
+#  - name: translation
+#    description: Translation operations
   - name: workflow
     description: Workflow operations
-  - name: tasks
-    description: tasks operations
+#  - name: tasks
+#    description: tasks operations
   - name: loggers
     description: Logger configuration operations
 
@@ -98,8 +96,8 @@ paths:
         - name: sort
           in: query
           description: |-
-            The fields to use for sorting, plus the `asc` or `desc` keyword. Multiple fields are separated by
-            commas. Finally, the value should match the following regex: `([a-zA-Z_][a-zA-Z_0-9]*,?)+ (asc|desc)`?
+            The fields to use for sorting, plus the `asc` or `desc` keyword case-insensitive. Multiple fields are separated by
+            commas. Example: `column1 ASC, column2 DESC`.
           required: false
           schema:
             type: string
@@ -180,7 +178,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Group'
+              $ref: '#/components/schemas/UpdateGroupRequest'
       responses:
         '200':
           description: OK
@@ -301,8 +299,8 @@ paths:
         - name: sort
           in: query
           description: |-
-            The fields to use for sorting, plus the `asc` or `desc` keyword. Multiple fields are separated by
-            commas. Finally, the value should match the following regex: `([a-zA-Z_][a-zA-Z_0-9]*,?)+ (asc|desc)`?
+            The fields to use for sorting, plus the `asc` or `desc` keyword case-insensitive. Multiple fields are separated by
+            commas. Example: `column1 ASC, column2 DESC`.
           required: false
           schema:
             type: string
@@ -450,7 +448,7 @@ paths:
       description: 'Required Permission: "READ_USERS"'
       operationId: getUsers
       parameters:
-        - name: site
+        - name: site_id
           in: query
           description: The site ID to filter users for a particular site
           required: false
@@ -479,8 +477,8 @@ paths:
         - name: sort
           in: query
           description: |-
-            The fields to use for sorting, plus the `asc` or `desc` keyword. Multiple fields are separated by
-            commas. Finally, the value should match the following regex: `([a-zA-Z_][a-zA-Z_0-9]*,?)+ (asc|desc)`?
+            The fields to use for sorting, plus the `asc` or `desc` keyword case-insensitive. Multiple fields are separated by
+            commas. Example: `column1 ASC, column2 DESC`.
           required: false
           schema:
             type: string
@@ -528,7 +526,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/CreateUserRequest'
       responses:
         '201':
           description: Created
@@ -556,12 +554,12 @@ paths:
       description: 'Required Permission: "UPDATE_USERS"'
       operationId: updateUser
       requestBody:
-        description: User entity to update. The `password`, `externallyManaged` and `username` fields will be ignored if sent.
+        description: User entity to update. Supported update attributes are firstName, lastName, email and enabled.
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/UpdateUserRequest'
       responses:
         '200':
           description: OK
@@ -979,6 +977,21 @@ paths:
       summary: Get all the sites the current authenticated user has access to
       description:  'Required Permission: "LOGGED_IN"'
       operationId: getCurrentUserSites
+      parameters:
+        - name: offset
+          in: query
+          description: Offset of first record in the response
+          required: false
+          schema:
+            type: integer
+            format: int32
+        - name: limit
+          in: query
+          description: Number of records to return
+          required: false
+          schema:
+            type: integer
+            format: int32
       responses:
         '200':
           description: OK
@@ -1560,6 +1573,8 @@ paths:
                       $ref: '#/components/schemas/S3Item'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1612,6 +1627,8 @@ paths:
                     $ref: '#/components/schemas/S3Item'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1663,6 +1680,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1714,6 +1733,8 @@ paths:
                       $ref: '#/components/schemas/WebDavItem'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1762,6 +1783,8 @@ paths:
                     $ref: '#/components/schemas/WebDavItem'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1981,12 +2004,6 @@ paths:
           required: false
           schema:
             type: string
-        - name: siteName
-          in: query
-          description: Site name - optional for super admin user, otherwise required
-          required: false
-          schema:
-            type: string
         - name: offset
           in: query
           description: Offset of first record in the response
@@ -2112,6 +2129,12 @@ paths:
           schema:
             type: integer
             format: int64
+        - name: siteId
+          in: query
+          description: Site ID (site identifier) - optional for super admin user, otherwise required
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: OK
@@ -2274,295 +2297,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
-
-  /cmis/list:
-    get:
-      tags:
-        - cmis
-      summary: List files and folders in a CMIS repository with an optional range for pagination
-      operationId: cmisList
-      description: 'Required permissions: "list_cmis"'
-      parameters:
-        - name: siteId
-          in: query
-          description: site ID
-          required: true
-          schema:
-            type: string
-        - name: cmisRepoId
-          in: query
-          description: CMIS repository ID as specified in Site Config CMIS Config (cmis-config.xml)
-          required: true
-          schema:
-            type: string
-        - name: path
-          in: query
-          description: path to look under. Note this will be under the `base path` specified in cmis-config.xml
-          required: false
-          schema:
-            type: string
-        - name: offset
-          in: query
-          description: start offset
-          required: false
-          schema:
-            type: integer
-            format: int32
-        - name: limit
-          in: query
-          description: number of records to retrieve
-          required: false
-          schema:
-            type: integer
-            format: int32
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-                  total:
-                    type: integer
-                    format: int32
-                    description: Total records in the system
-                  offset:
-                    type: integer
-                    format: int32
-                    description: Offset of the first record in this response
-                  limit:
-                    type: integer
-                    format: int32
-                    description: Number of records returned in this response
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/CmisItem'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '408':
-          $ref: '#/components/responses/RequestTimeout'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-
-  /cmis/search:
-    get:
-      tags:
-        - cmis
-      summary: Search files and folders in a CMIS repository with an optional range for pagination
-      operationId: cmisSearch
-      description: 'Required permissions: "search_cmis"'
-      parameters:
-        - name: siteId
-          in: query
-          description: site ID
-          required: true
-          schema:
-            type: string
-        - name: cmisRepoId
-          in: query
-          description: CMIS repository ID as specified in Site Config CMIS Config (cmis-config.xml)
-          required: true
-          schema:
-            type: string
-        - name: searchTerm
-          in: query
-          description: CMIS search term to use
-          required: true
-          schema:
-            type: string
-        - name: path
-          in: query
-          description: path to look under. Note this will be under the `base path` specified in cmis-config.xml
-          required: false
-          schema:
-            type: string
-        - name: offset
-          in: query
-          description: start offset
-          required: false
-          schema:
-            type: integer
-            format: int32
-        - name: limit
-          in: query
-          description: number of records to retrieve
-          required: false
-          schema:
-            type: integer
-            format: int32
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-                  total:
-                    type: integer
-                    format: int32
-                    description: Total records in the system
-                  offset:
-                    type: integer
-                    format: int32
-                    description: Offset of the first record in this response
-                  limit:
-                    type: integer
-                    format: int32
-                    description: Number of records returned in this response
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/CmisItem'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '408':
-          $ref: '#/components/responses/RequestTimeout'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-
-  /cmis/clone:
-    post:
-      tags:
-        - cmis
-      summary: Clone a file from a CMIS repository to Studio provided paths
-      operationId: cmisClone
-      description: 'Required permissions: "clone_content_cmis"'
-      requestBody:
-        description: cmis clone request body
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                siteId:
-                  type: string
-                  description: site ID
-                cmisRepoId:
-                  type: string
-                  description: CMIS repository ID as specified in Site Config CMIS Config (cmis-config.xml)
-                cmisPath:
-                  type: string
-                  description: path to read the asset from CMIS repo (source)
-                studioPath:
-                  type: string
-                  description: path to save the asset in Studio (destination)
-              required:
-                - siteId
-                - cmisRepoId
-                - cmisPath
-                - studioPath
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '408':
-          $ref: '#/components/responses/RequestTimeout'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-
-  /cmis/upload:
-    post:
-      tags:
-        - cmis
-      summary:  Upload an asset file to CMIS repository
-      operationId: cmisUpload
-      description: 'Required permissions: "upload_content_cmis"'
-      requestBody:
-        description: cmis upload request body
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                siteId:
-                  type: string
-                  description: site ID
-                cmisRepoId:
-                  type: string
-                  description: CMIS repository ID as specified in Site Config CMIS Config (cmis-config.xml)
-                cmisPath:
-                  type: string
-                  description: path to upload the asset to CMIS repo (destination)
-                file:
-                  type: string
-                  format: binary
-              required:
-                - siteId
-                - cmisRepoId
-                - cmisPathId
-                - file
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-                  item:
-                    type: object
-                    properties:
-                      name:
-                        type: string
-                        description: filename of the uploaded content
-                      url:
-                        type: string
-                        description: url of uploaded content
-                      folder:
-                        type: boolean
-                        description: true if content is folder
-                      fileExtension:
-                        type: string
-                        description: file extension of uploaded content
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '408':
-          $ref: '#/components/responses/RequestTimeout'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
 
   /repository/add_remote:
     post:
@@ -2990,7 +2724,7 @@ paths:
                 siteId:
                   type: string
                   description: site ID
-                commit_message:
+                commitMessage:
                   type: string
                   description: Commit message
               required:
@@ -3232,6 +2966,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -3286,6 +3022,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -3296,7 +3034,7 @@ paths:
       tags:
         - configuration
       summary: Clear all configuration cache for a given site
-      description: 'Required Permission: "LOGGED_IN"'
+      description: 'Required Permission: "write_configuration"'
       operationId: clearConfigurationCache
       parameters:
         - name: siteId
@@ -3312,6 +3050,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -3363,42 +3103,45 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /configuration/translation:
-    get:
-      tags:
-        - configuration
-      summary: Get translation configuration for a given site
-      operationId: getTranslationConfig
-      parameters:
-        - name: siteId
-          in: query
-          description: site ID
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-                  config:
-                    $ref: '#/components/schemas/TranslationConfig'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+  # /configuration/translation:
+  #   get:
+  #     tags:
+  #       - configuration
+  #     summary: Get translation configuration for a given site
+  #     description: 'Required permission "read_configuration"'
+  #     operationId: getTranslationConfig
+  #     parameters:
+  #       - name: siteId
+  #         in: query
+  #         description: site ID
+  #         required: true
+  #         schema:
+  #           type: string
+  #     responses:
+  #       '200':
+  #         description: OK
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 response:
+  #                   $ref: '#/components/schemas/ApiResponse'
+  #                 config:
+  #                   $ref: '#/components/schemas/TranslationConfig'
+  #       '400':
+  #         $ref: '#/components/responses/BadRequest'
+  #       '401':
+  #         $ref: '#/components/responses/Unauthorized'
+  #       '403':
+  #         $ref: '#/components/responses/Forbidden'
 
   /configuration/content-type/usage:
     get:
@@ -3528,7 +3271,7 @@ paths:
                 - contentType
       responses:
         '200':
-          description: OK
+          description: Deleted
           content:
             application/json:
               schema:
@@ -4041,7 +3784,7 @@ paths:
       tags:
         - content
       summary: Get item details for given an item path
-      description: 'Required permission "get_detailed_item" and "read_item" and "site member"'
+      description: 'Required permission "get_children"'
       operationId: getDetailedItemByPath
       parameters:
         - name: siteId
@@ -4378,7 +4121,7 @@ paths:
       tags:
         - content
       summary: Get content for commit id
-      description: 'Required permission "site member"'
+      description: 'Required permission "content_read"'
       operationId: getContentByCommitId
       parameters:
         - name: siteId
@@ -4428,7 +4171,7 @@ paths:
       tags:
         - dependency
       summary: Get list of dependencies for given content paths
-      description: 'Required permission "site member"'
+      description: 'Required permission "content_read"'
       operationId: getDependencies
       requestBody:
         required: true
@@ -5174,6 +4917,42 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /publish/has_initial_publish:
+    get:
+      tags:
+        - publishing
+      summary: Check if site has initial publish
+      description: 'Required permission "content_read"'
+      operationId: hasInitialPublish
+      parameters:
+        - name: siteId
+          in: query
+          description: site ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    $ref: '#/components/schemas/ApiResponse'
+                  hasInitialPublish:
+                    type: boolean
+                    description: true if site has been published at least once (initial publish; published repository exist), otherwise false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /security/encrypt:
     post:
       tags:
@@ -5577,10 +5356,10 @@ paths:
                     type: integer
                     format: int32
                     description: Number of records returned in this response
-                  publishingPackages:
+                  publishingItems:
                     type: array
                     items:
-                      $ref: '#/components/schemas/DashboardPublishingPackage'
+                      $ref: '#/components/schemas/DetailedItem'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5642,7 +5421,7 @@ paths:
       tags:
         - dashboard
       summary: Get unpublished items for site
-      description: 'Required permission "site_member"'
+      description: 'Required permission "content_read"'
       operationId: getDashboardContentUnpublished
       parameters:
         - name: siteId
@@ -5705,7 +5484,7 @@ paths:
       tags:
         - dashboard
       summary: Get scheduled publishing packages
-      description: 'Required permission "site_member"'
+      description: 'Required permission "content_read"'
       operationId: getDashboardPublishingScheduled
       parameters:
         - name: siteId
@@ -5717,12 +5496,6 @@ paths:
         - name: publishingTarget
           in: query
           description: publishing target to filter results
-          required: false
-          schema:
-            type: string
-        - name: approver
-          in: query
-          description: approver user to filter results
           required: false
           schema:
             type: string
@@ -5794,7 +5567,7 @@ paths:
       tags:
         - dashboard
       summary: Get content items of the package that is scheduled
-      description: 'Required permission "site_member"'
+      description: 'Required permission "content_read"'
       operationId: getDashboardPublishingScheduledDetail
       parameters:
         - name: siteId
@@ -5839,7 +5612,7 @@ paths:
       tags:
         - dashboard
       summary: Get history of published packages
-      description: 'Required permission "site_member"'
+      description: 'Required permission "content_read"'
       operationId: getDashboardPublishingHistory
       parameters:
         - name: siteId
@@ -5928,7 +5701,7 @@ paths:
       tags:
         - dashboard
       summary: Get content items of the package that was published
-      description: 'Required permission "site_member"'
+      description: 'Required permission "content_read"'
       operationId: getDashboardPublishingHistoryDetail
       parameters:
         - name: siteId
@@ -5973,7 +5746,7 @@ paths:
       tags:
         - dashboard
       summary: Get publishing stats
-      description: 'Required permission "site_member"'
+      description: 'Required permission "content_read"'
       operationId: getDashboardPublishingStats
       parameters:
         - name: siteId
@@ -6150,347 +5923,347 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /translation/list:
-    get:
-      tags:
-        - translation
-      summary: Get items for translation
-      description: 'Required permission "get_items_for_translation"'
-      operationId: getItemsForTranslation
-      parameters:
-        - name: siteId
-          in: query
-          description: site ID
-          required: true
-          schema:
-            type: string
-        - name: path
-          in: query
-          description: filter results by path regexes
-          schema:
-            type: array
-            items:
-              type: string
-        - name: locale
-          in: query
-          description: filter results by locales
-          schema:
-            type: array
-            items:
-              type: string
-        - name: markedForTranslation
-          in: query
-          description: Include only items marked for translation and exclude everything else (default true)
-          schema:
-            type: boolean
-        - name: notTranslated
-          in: query
-          description: Include only items that have not been translated yet (default true)
-          schema:
-            type: boolean
-        - name: translationOutOfDate
-          in: query
-          description: Include items with translation out of date, otherwise exclude them (default true)
-          schema:
-            type: boolean
-        - name: offset
-          in: query
-          description: offset of the first result item, default 0
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          description: number of results to return, default 10
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-                  total:
-                    type: integer
-                    format: int32
-                    description: Total records in the system
-                  offset:
-                    type: integer
-                    format: int32
-                    description: Offset of first record in this response
-                  limit:
-                    type: integer
-                    format: int32
-                    description: Number of records returned in this response
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LocalizationItem'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /translation/item_by_id:
-    post:
-      tags:
-        - translation
-      summary: Get translation item(s) detail
-      description: 'Required permission "get_translation_item_detail"'
-      operationId: getTranslationItemById
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                siteId:
-                  description: site ID
-                  type: string
-                id:
-                  description: Id(s) of item(s) to retrieve
-                  type: array
-                  items:
-                    type: string
-              required:
-                - siteId
-                - id
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LocalizationItem'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /translation/item_by_path:
-    post:
-      tags:
-        - translation
-      summary: Get translation item(s) detail
-      description: 'Required permission "get_translation_item_detail"'
-      operationId: getTranslationItemByPath
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                siteId:
-                  description: site ID
-                  type: string
-                path:
-                  description: Path(s) to item(s) to retrieve
-                  type: array
-                  items:
-                    type: string
-              required:
-                - siteId
-                - path
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LocalizationItem'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /translation/list_target_locales:
-    get:
-      tags:
-        - translation
-      summary: Get list of target translation locales
-      description: 'Required permission "get_translation_target_locales"'
-      operationId: getTranslationTargetLocales
-      parameters:
-        - name: siteId
-          in: query
-          description: site ID
-          required: true
-          schema:
-            type: string
-        - name: path
-          in: query
-          description: item path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LocalizationItem'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /translation/mark_for_translation_by_id:
-    post:
-      tags:
-        - translation
-      summary: Mark item to be translated to specific locales
-      description: 'Required permission "mark_for_translation"'
-      operationId: markForTranslationById
-      requestBody:
-        description: Item and list of locales to translate to
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                siteId:
-                  type: string
-                  description: site ID
-                id:
-                  type: array
-                  description: id(s) of the item(s)
-                  items:
-                    type: string
-                locales:
-                  type: array
-                  description: locale codes
-                  items:
-                    type: string
-              required:
-                - siteId
-                - path
-                - locales
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /translation/mark_for_translation_by_path:
-    post:
-      tags:
-        - translation
-      summary: Mark item to be translated to specific locales
-      description: 'Required permission "mark_for_translation"'
-      operationId: markForTranslationByPath
-      requestBody:
-        description: Item and list of locales to translate to
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                siteId:
-                  type: string
-                  description: site ID
-                path:
-                  type: array
-                  description: path(s) of the item(s)
-                  items:
-                    type: string
-
-                locales:
-                  type: array
-                  description: locale codes
-                  items:
-                    type: string
-              required:
-                - siteId
-                - path
-                - locales
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  response:
-                    $ref: '#/components/schemas/ApiResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+#  /translation/list:
+#    get:
+#      tags:
+#        - translation
+#      summary: Get items for translation
+#      description: 'Required permission "get_items_for_translation"'
+#      operationId: getItemsForTranslation
+#      parameters:
+#        - name: siteId
+#          in: query
+#          description: site ID
+#          required: true
+#          schema:
+#            type: string
+#        - name: path
+#          in: query
+#          description: filter results by path regexes
+#          schema:
+#            type: array
+#            items:
+#              type: string
+#        - name: locale
+#          in: query
+#          description: filter results by locales
+#          schema:
+#            type: array
+#            items:
+#              type: string
+#        - name: markedForTranslation
+#          in: query
+#          description: Include only items marked for translation and exclude everything else (default true)
+#          schema:
+#            type: boolean
+#        - name: notTranslated
+#          in: query
+#          description: Include only items that have not been translated yet (default true)
+#          schema:
+#            type: boolean
+#        - name: translationOutOfDate
+#          in: query
+#          description: Include items with translation out of date, otherwise exclude them (default true)
+#          schema:
+#            type: boolean
+#        - name: offset
+#          in: query
+#          description: offset of the first result item, default 0
+#          schema:
+#            type: integer
+#        - name: limit
+#          in: query
+#          description: number of results to return, default 10
+#          schema:
+#            type: integer
+#      responses:
+#        '200':
+#          description: OK
+#          content:
+#            application/json:
+#              schema:
+#                type: object
+#                properties:
+#                  response:
+#                    $ref: '#/components/schemas/ApiResponse'
+#                  total:
+#                    type: integer
+#                    format: int32
+#                    description: Total records in the system
+#                  offset:
+#                    type: integer
+#                    format: int32
+#                    description: Offset of first record in this response
+#                  limit:
+#                    type: integer
+#                    format: int32
+#                    description: Number of records returned in this response
+#                  items:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/LocalizationItem'
+#        '400':
+#          $ref: '#/components/responses/BadRequest'
+#        '401':
+#          $ref: '#/components/responses/Unauthorized'
+#        '403':
+#          $ref: '#/components/responses/Forbidden'
+#        '404':
+#          $ref: '#/components/responses/NotFound'
+#        '500':
+#          $ref: '#/components/responses/InternalServerError'
+#
+#  /translation/item_by_id:
+#    post:
+#      tags:
+#        - translation
+#      summary: Get translation item(s) detail
+#      description: 'Required permission "get_translation_item_detail"'
+#      operationId: getTranslationItemById
+#      requestBody:
+#        required: true
+#        content:
+#          application/json:
+#            schema:
+#              type: object
+#              properties:
+#                siteId:
+#                  description: site ID
+#                  type: string
+#                id:
+#                  description: Id(s) of item(s) to retrieve
+#                  type: array
+#                  items:
+#                    type: string
+#              required:
+#                - siteId
+#                - id
+#      responses:
+#        '200':
+#          description: OK
+#          content:
+#            application/json:
+#              schema:
+#                type: object
+#                properties:
+#                  response:
+#                    $ref: '#/components/schemas/ApiResponse'
+#                  items:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/LocalizationItem'
+#        '400':
+#          $ref: '#/components/responses/BadRequest'
+#        '401':
+#          $ref: '#/components/responses/Unauthorized'
+#        '403':
+#          $ref: '#/components/responses/Forbidden'
+#        '404':
+#          $ref: '#/components/responses/NotFound'
+#        '500':
+#          $ref: '#/components/responses/InternalServerError'
+#
+#  /translation/item_by_path:
+#    post:
+#      tags:
+#        - translation
+#      summary: Get translation item(s) detail
+#      description: 'Required permission "get_translation_item_detail"'
+#      operationId: getTranslationItemByPath
+#      requestBody:
+#        required: true
+#        content:
+#          application/json:
+#            schema:
+#              type: object
+#              properties:
+#                siteId:
+#                  description: site ID
+#                  type: string
+#                path:
+#                  description: Path(s) to item(s) to retrieve
+#                  type: array
+#                  items:
+#                    type: string
+#              required:
+#                - siteId
+#                - path
+#      responses:
+#        '200':
+#          description: OK
+#          content:
+#            application/json:
+#              schema:
+#                type: object
+#                properties:
+#                  response:
+#                    $ref: '#/components/schemas/ApiResponse'
+#                  items:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/LocalizationItem'
+#        '400':
+#          $ref: '#/components/responses/BadRequest'
+#        '401':
+#          $ref: '#/components/responses/Unauthorized'
+#        '403':
+#          $ref: '#/components/responses/Forbidden'
+#        '404':
+#          $ref: '#/components/responses/NotFound'
+#        '500':
+#          $ref: '#/components/responses/InternalServerError'
+#
+#  /translation/list_target_locales:
+#    get:
+#      tags:
+#        - translation
+#      summary: Get list of target translation locales
+#      description: 'Required permission "get_translation_target_locales"'
+#      operationId: getTranslationTargetLocales
+#      parameters:
+#        - name: siteId
+#          in: query
+#          description: site ID
+#          required: true
+#          schema:
+#            type: string
+#        - name: path
+#          in: query
+#          description: item path
+#          required: true
+#          schema:
+#            type: string
+#      responses:
+#        '200':
+#          description: OK
+#          content:
+#            application/json:
+#              schema:
+#                type: object
+#                properties:
+#                  response:
+#                    $ref: '#/components/schemas/ApiResponse'
+#                  items:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/LocalizationItem'
+#        '400':
+#          $ref: '#/components/responses/BadRequest'
+#        '401':
+#          $ref: '#/components/responses/Unauthorized'
+#        '403':
+#          $ref: '#/components/responses/Forbidden'
+#        '404':
+#          $ref: '#/components/responses/NotFound'
+#        '500':
+#          $ref: '#/components/responses/InternalServerError'
+#
+#  /translation/mark_for_translation_by_id:
+#    post:
+#      tags:
+#        - translation
+#      summary: Mark item to be translated to specific locales
+#      description: 'Required permission "mark_for_translation"'
+#      operationId: markForTranslationById
+#      requestBody:
+#        description: Item and list of locales to translate to
+#        required: true
+#        content:
+#          application/json:
+#            schema:
+#              type: object
+#              properties:
+#                siteId:
+#                  type: string
+#                  description: site ID
+#                id:
+#                  type: array
+#                  description: id(s) of the item(s)
+#                  items:
+#                    type: string
+#                locales:
+#                  type: array
+#                  description: locale codes
+#                  items:
+#                    type: string
+#              required:
+#                - siteId
+#                - path
+#                - locales
+#      responses:
+#        '200':
+#          description: OK
+#          content:
+#            application/json:
+#              schema:
+#                type: object
+#                properties:
+#                  response:
+#                    $ref: '#/components/schemas/ApiResponse'
+#        '400':
+#          $ref: '#/components/responses/BadRequest'
+#        '401':
+#          $ref: '#/components/responses/Unauthorized'
+#        '403':
+#          $ref: '#/components/responses/Forbidden'
+#        '404':
+#          $ref: '#/components/responses/NotFound'
+#        '500':
+#          $ref: '#/components/responses/InternalServerError'
+#
+#  /translation/mark_for_translation_by_path:
+#    post:
+#      tags:
+#        - translation
+#      summary: Mark item to be translated to specific locales
+#      description: 'Required permission "mark_for_translation"'
+#      operationId: markForTranslationByPath
+#      requestBody:
+#        description: Item and list of locales to translate to
+#        required: true
+#        content:
+#          application/json:
+#            schema:
+#              type: object
+#              properties:
+#                siteId:
+#                  type: string
+#                  description: site ID
+#                path:
+#                  type: array
+#                  description: path(s) of the item(s)
+#                  items:
+#                    type: string
+#
+#                locales:
+#                  type: array
+#                  description: locale codes
+#                  items:
+#                    type: string
+#              required:
+#                - siteId
+#                - path
+#                - locales
+#      responses:
+#        '200':
+#          description: OK
+#          content:
+#            application/json:
+#              schema:
+#                type: object
+#                properties:
+#                  response:
+#                    $ref: '#/components/schemas/ApiResponse'
+#        '400':
+#          $ref: '#/components/responses/BadRequest'
+#        '401':
+#          $ref: '#/components/responses/Unauthorized'
+#        '403':
+#          $ref: '#/components/responses/Forbidden'
+#        '404':
+#          $ref: '#/components/responses/NotFound'
+#        '500':
+#          $ref: '#/components/responses/InternalServerError'
 
   /workflow/item_states:
     get:
@@ -6695,7 +6468,7 @@ paths:
       tags:
         - workflow
       summary: Get workflow affected paths
-      description: 'Required permission "site member"'
+      description: 'Required permission "content_read"'
       operationId: getWorkflowAffectedPaths
       parameters:
         - name: siteId
@@ -7380,6 +7153,7 @@ components:
           * `CODE:` 0, `MESSAGE:` OK
           * `CODE:` 1, `MESSAGE:` Created
           * `CODE:` 2, `MESSAGE:` Deleted
+          * `CODE:` 3, `MESSAGE:` Completed with errors
           * `CODE:` 1000, `MESSAGE:` Internal system failure, `REMEDIAL ACTION:` Contact support
           * `CODE:` 1001, `MESSAGE:` Invalid parameter(s), `REMEDIAL ACTION:` Check API and make sure you're sending the correct parameters
           * `CODE:` 2000, `MESSAGE:` Unauthenticated, `REMEDIAL ACTION:` Please login first
@@ -7398,6 +7172,7 @@ components:
           * `CODE:` 7001, `MESSAGE:` Content already exists, `REMEDIAL ACTION:` Edit the existing item or delete it before creating it again
           * `CODE:` 7002, `MESSAGE:` Content already locked, `REMEDIAL ACTION:` The user that locked the item or the administrator must unlock the item first
           * `CODE:` 7003, `MESSAGE:` Content already unlocked, `REMEDIAL ACTION:` The item is already unlocked
+          * `CODE:` 7004, `MESSAGE:` Paste destination folder is invalid (did you paste the item onto itself?), `REMEDIAL ACTION:` Try pasting the content to a different folder
           * `CODE:` 8000, `MESSAGE:` Publishing is disabled, `REMEDIAL ACTION:` Advise the user to enable publishing
           * `CODE:` 9000, `MESSAGE:` Search is unreachable, `REMEDIAL ACTION:` Advise the user that the search engine is not reachable
           * `CODE:` 10000, `MESSAGE:` LoV not found, `REMEDIAL ACTION:` Check if you sent in the right LoV Id
@@ -7415,9 +7190,6 @@ components:
           * `CODE:` 40001, `MESSAGE:` Marketplace server is unreachable, `REMEDIAL ACTION:` Check the configuration to make sure the Marketplace URL is correct
           * `CODE:` 40002, `MESSAGE:` Plugin is already installed, `REMEDIAL ACTION:` Check that the site id, plugin id and plugin version are correct
           * `CODE:` 40003, `MESSAGE:` Error installing plugin, `REMEDIAL ACTION:` Check the plugin requirements
-          * `CODE:` 50000, `MESSAGE:` CMIS server is unreachable, `REMEDIAL ACTION:` Advise the user that the CMIS server is not reachable
-          * `CODE:` 50001, `MESSAGE:` Request to CMIS server timed out, `REMEDIAL ACTION:` Advise the user that the request to CMIS server timed out
-          * `CODE:` 50002, `MESSAGE:` CMIS server was not found, `REMEDIAL ACTION:` Advise the user that the CMIS server was not found
           * `CODE:` 50003, `MESSAGE:` Target path does not exist in site repository, `REMEDIAL ACTION:` Check if you sent in the right Studio Path
           * `CODE:` 51000, `MESSAGE:` Box is unreachable, `REMEDIAL ACTION:` Advise the user that Box is not reachable
           * `CODE:` 52000, `MESSAGE:` AWS is unreachable, `REMEDIAL ACTION:` Advise the user that AWS engine is not reachable
@@ -7436,6 +7208,70 @@ components:
         documentationUrl:
           type: string
           description: A URL to documentation related to the response
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 'User ID, unique and immutable'
+        firstName:
+          type: string
+          description: User's first name
+        lastName:
+          type: string
+          description: User's last name
+        email:
+          type: string
+          description: User's email address
+        enabled:
+          type: boolean
+          description: Indicates if the user is enabled
+      required:
+        - id
+        - username
+        - password
+        - firstName
+        - lastName
+        - email
+        - enabled
+        - externallyManaged
+
+    CreateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Username, unique
+        password:
+          type: string
+          description: User's password (not returned to caller)
+        firstName:
+          type: string
+          description: User's first name
+        lastName:
+          type: string
+          description: User's last name
+        email:
+          type: string
+          description: User's email address
+        enabled:
+          type: boolean
+          description: Indicates if the user is enabled
+        externallyManaged:
+          type: boolean
+          description: Indicates if a user is managed in by an external system (LDAP, SAML, etc.)
+      required:
+        - id
+        - username
+        - password
+        - firstName
+        - lastName
+        - email
+        - enabled
+        - externallyManaged
+
     User:
       type: object
       properties:
@@ -7524,6 +7360,20 @@ components:
         name:
           type: string
           description: 'Group name, unique'
+        desc:
+          type: string
+          description: Group description
+      required:
+        - id
+        - name
+        -
+    UpdateGroupRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 'Group ID, unique and immutable'
         desc:
           type: string
           description: Group description
@@ -8228,23 +8078,6 @@ components:
           format: int64
           description: The time in milliseconds of the log event
 
-    CmisItem:
-      type: object
-      properties:
-        itemId:
-          type: string
-          description: Item id inside CMIS repository
-        itemName:
-          type: string
-          description: Item name
-        mimeType:
-          type: string
-          description: Item mime type
-        size:
-          type: integer
-          format: int32
-          description: Item size
-
     RemoteRepository:
       type: object
       properties:
@@ -8937,17 +8770,17 @@ components:
         - lockOwner
         - localeCode
 
-    TranslationConfig:
-      type: object
-      properties:
-        localeCodes:
-          type: array
-          description: List of codes for the supported locales
-          items:
-            type: string
-        defaultLocaleCode:
-          type: string
-          description: The code of the default locale for all new content
+#    TranslationConfig:
+#      type: object
+#      properties:
+#        localeCodes:
+#          type: array
+#          description: List of codes for the supported locales
+#          items:
+#            type: string
+#        defaultLocaleCode:
+#          type: string
+#          description: The code of the default locale for all new content
 
     ContentValidationRequest:
       type: object

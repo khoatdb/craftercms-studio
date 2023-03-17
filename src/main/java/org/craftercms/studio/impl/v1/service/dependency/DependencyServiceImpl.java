@@ -279,14 +279,9 @@ public class DependencyServiceImpl implements DependencyService {
     public Set<String> getItemDependencies(String site, String path, int depth)
             throws ServiceLayerException {
         // Check if site exists
-        if (!siteService.exists(site)) {
-            throw new SiteNotFoundException();
-        }
-
+        siteService.checkSiteExists(site);
         // Check if content exists
-        if (!contentService.contentExists(site, path)) {
-            throw new ContentNotFoundException();
-        }
+        contentService.checkContentExists(site, path);
 
         logger.debug("Get item dependencies for site '{}' path '{}'", site, path);
 
@@ -331,9 +326,7 @@ public class DependencyServiceImpl implements DependencyService {
         }
 
         // Check if content exists
-        if (!contentService.contentExists(site, path)) {
-            throw new ContentNotFoundException();
-        }
+        contentService.checkContentExists(site, path);
 
         logger.debug("Get items depending on item site '{}' path '{}'", site, path);
         Set<String> toRet = new HashSet<>();

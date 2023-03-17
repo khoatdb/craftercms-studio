@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -16,11 +16,21 @@
 
 package org.craftercms.studio.model.rest;
 
+import org.craftercms.commons.validation.annotations.param.EsapiValidatedParam;
+import org.craftercms.commons.validation.annotations.param.ValidConfigurationPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+
+import static org.craftercms.commons.validation.annotations.param.EsapiValidationType.ALPHANUMERIC;
+
 public class WriteConfigurationRequest {
 
+    @ValidSiteId
     private String siteId;
+    @EsapiValidatedParam(type = ALPHANUMERIC)
     private String module;
+    @ValidConfigurationPath
     private String path;
+    @EsapiValidatedParam(type = ALPHANUMERIC)
     private String environment;
     private String content;
 

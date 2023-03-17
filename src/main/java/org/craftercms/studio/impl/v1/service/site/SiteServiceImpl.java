@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -16,28 +16,8 @@
 
 package org.craftercms.studio.impl.v1.service.site;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
-
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -54,39 +34,31 @@ import org.craftercms.commons.entitlements.validator.EntitlementValidator;
 import org.craftercms.commons.lang.RegexUtils;
 import org.craftercms.commons.plugin.model.PluginDescriptor;
 import org.craftercms.commons.plugin.model.SearchEngines;
-import org.craftercms.commons.validation.annotations.param.ValidateIntegerParam;
 import org.craftercms.commons.validation.annotations.param.ValidateNoTagsParam;
-import org.craftercms.commons.validation.annotations.param.ValidateParams;
 import org.craftercms.commons.validation.annotations.param.ValidateStringParam;
 import org.craftercms.studio.api.v1.constant.StudioConstants;
 import org.craftercms.studio.api.v1.dal.SiteFeed;
 import org.craftercms.studio.api.v1.dal.SiteFeedMapper;
-import org.craftercms.studio.api.v1.exception.BlueprintNotFoundException;
-import org.craftercms.studio.api.v1.exception.DeployerTargetException;
-import org.craftercms.studio.api.v1.exception.ServiceLayerException;
-import org.craftercms.studio.api.v1.exception.SiteAlreadyExistsException;
-import org.craftercms.studio.api.v1.exception.SiteCreationException;
-import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
+import org.craftercms.studio.api.v1.exception.*;
 import org.craftercms.studio.api.v1.exception.repository.InvalidRemoteRepositoryCredentialsException;
 import org.craftercms.studio.api.v1.exception.repository.InvalidRemoteRepositoryException;
 import org.craftercms.studio.api.v1.exception.repository.InvalidRemoteUrlException;
 import org.craftercms.studio.api.v1.exception.repository.RemoteRepositoryNotFoundException;
 import org.craftercms.studio.api.v1.exception.security.GroupAlreadyExistsException;
 import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
-import org.craftercms.studio.api.v2.dal.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.craftercms.studio.api.v1.repository.RepositoryItem;
 import org.craftercms.studio.api.v1.service.content.ContentService;
 import org.craftercms.studio.api.v1.service.content.DmPageNavigationOrderService;
 import org.craftercms.studio.api.v1.service.dependency.DependencyService;
 import org.craftercms.studio.api.v1.service.deployment.DeploymentService;
 import org.craftercms.studio.api.v1.service.security.SecurityService;
-import org.craftercms.studio.api.v1.service.site.SiteConfigNotFoundException;
 import org.craftercms.studio.api.v1.service.site.SiteService;
 import org.craftercms.studio.api.v1.to.RemoteRepositoryInfoTO;
 import org.craftercms.studio.api.v1.to.SiteBlueprintTO;
+import org.craftercms.studio.api.v2.dal.*;
 import org.craftercms.studio.api.v2.deployment.Deployer;
+import org.craftercms.studio.api.v2.event.repository.RepositoryEvent;
+import org.craftercms.studio.api.v2.event.site.SiteDeleteEvent;
 import org.craftercms.studio.api.v2.event.site.SiteEvent;
 import org.craftercms.studio.api.v2.exception.MissingPluginParameterException;
 import org.craftercms.studio.api.v2.repository.ContentRepository;
@@ -96,63 +68,53 @@ import org.craftercms.studio.api.v2.service.dependency.internal.DependencyServic
 import org.craftercms.studio.api.v2.service.item.internal.ItemServiceInternal;
 import org.craftercms.studio.api.v2.service.security.internal.GroupServiceInternal;
 import org.craftercms.studio.api.v2.service.security.internal.UserServiceInternal;
-import org.craftercms.studio.api.v2.service.site.internal.SitesServiceInternal;
+import org.craftercms.studio.api.v2.service.site.SitesService;
 import org.craftercms.studio.api.v2.service.workflow.internal.WorkflowServiceInternal;
 import org.craftercms.studio.api.v2.upgrade.StudioUpgradeManager;
 import org.craftercms.studio.api.v2.utils.StudioConfiguration;
 import org.craftercms.studio.api.v2.utils.StudioUtils;
 import org.craftercms.studio.impl.v1.repository.job.RebuildRepositoryMetadata;
 import org.craftercms.studio.impl.v1.repository.job.SyncDatabaseWithRepository;
-import org.craftercms.studio.impl.v2.service.cluster.StudioClusterUtils;
 import org.craftercms.studio.impl.v2.utils.DateUtils;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
+import org.springframework.lang.NonNull;
 
+import javax.validation.Valid;
+import javax.validation.constraints.Size;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.time.ZonedDateTime;
+import java.util.*;
+
+import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.craftercms.studio.api.v1.constant.DmConstants.ROOT_PATTERN_ASSETS;
-import static org.craftercms.studio.api.v1.constant.DmConstants.ROOT_PATTERN_PAGES;
-import static org.craftercms.studio.api.v1.constant.DmConstants.XML_PATTERN;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.CONTENT_TYPE_FOLDER;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.DEFAULT_ORGANIZATION_ID;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.FILE_SEPARATOR;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.REMOTE_REPOSITORY_CREATE_OPTION_CLONE;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.SITE_DEFAULT_GROUPS_DESCRIPTION;
-import static org.craftercms.studio.api.v1.constant.StudioXmlConstants.DOCUMENT_ELM_CONTENT_TYPE;
-import static org.craftercms.studio.api.v1.constant.StudioXmlConstants.DOCUMENT_ELM_DISABLED;
-import static org.craftercms.studio.api.v1.constant.StudioXmlConstants.DOCUMENT_ELM_INTERNAL_TITLE;
+import static java.util.Objects.nonNull;
+import static org.apache.commons.collections4.CollectionUtils.isNotEmpty;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.craftercms.studio.api.v1.constant.DmConstants.*;
+import static org.craftercms.studio.api.v1.constant.StudioConstants.*;
+import static org.craftercms.studio.api.v1.constant.StudioXmlConstants.*;
 import static org.craftercms.studio.api.v1.dal.SiteFeed.*;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_ADD_REMOTE;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_CREATE;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_DELETE;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_REMOVE_REMOTE;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.TARGET_TYPE_BLUEPRINT;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.TARGET_TYPE_REMOTE_REPOSITORY;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.TARGET_TYPE_SITE;
-import static org.craftercms.studio.api.v2.dal.ItemState.DISABLED;
-import static org.craftercms.studio.api.v2.dal.ItemState.NEW;
-import static org.craftercms.studio.api.v2.dal.ItemState.SAVE_AND_CLOSE_OFF_MASK;
-import static org.craftercms.studio.api.v2.dal.ItemState.SAVE_AND_CLOSE_ON_MASK;
+import static org.craftercms.studio.api.v2.dal.AuditLogConstants.*;
+import static org.craftercms.studio.api.v2.dal.ItemState.*;
 import static org.craftercms.studio.api.v2.dal.PublishStatus.READY;
-import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.deleteItemRow;
-import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.insertItemRow;
-import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.deleteDependencyRows;
-import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.deleteDependencySourcePathRows;
-import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.insertDependencyRow;
-import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.moveItemRow;
-import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.updateItemRow;
-import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.updateParentId;
-import static org.craftercms.studio.api.v2.utils.StudioConfiguration.BLUE_PRINTS_PATH;
-import static org.craftercms.studio.api.v2.utils.StudioConfiguration.CONFIGURATION_DEFAULT_GROUPS;
-import static org.craftercms.studio.api.v2.utils.StudioConfiguration.CONFIGURATION_GLOBAL_SYSTEM_SITE;
-import static org.craftercms.studio.api.v2.utils.StudioConfiguration.CONFIGURATION_SITE_PREVIEW_DESTROY_CONTEXT_URL;
+import static org.craftercms.studio.api.v2.utils.SqlStatementGeneratorUtils.*;
+import static org.craftercms.studio.api.v2.utils.StudioConfiguration.*;
 import static org.craftercms.studio.impl.v1.repository.git.GitContentRepositoryConstants.GIT_REPO_USER_USERNAME;
 import static org.craftercms.studio.impl.v1.repository.git.GitContentRepositoryConstants.IGNORE_FILES;
 import static org.craftercms.studio.impl.v2.utils.PluginUtils.validatePluginParameters;
-import static java.lang.String.format;
 
 /**
  * Note: consider renaming
@@ -166,7 +128,6 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     private final static Logger logger = LoggerFactory.getLogger(SiteServiceImpl.class);
 
     protected Deployer deployer;
-    protected SiteServiceDAL _siteServiceDAL;
     protected ContentService contentService;
     protected org.craftercms.studio.api.v1.repository.ContentRepository contentRepository;
     protected ContentRepository contentRepositoryV2;
@@ -180,11 +141,10 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     protected UserServiceInternal userServiceInternal;
     protected StudioUpgradeManager upgradeManager;
     protected StudioConfiguration studioConfiguration;
-    protected SitesServiceInternal sitesServiceInternal;
+    protected SitesService sitesServiceInternal;
     protected AuditServiceInternal auditServiceInternal;
     protected ConfigurationService configurationService;
     protected ItemServiceInternal itemServiceInternal;
-    protected StudioClusterUtils studioClusterUtils;
     protected WorkflowServiceInternal workflowServiceInternal;
     protected ApplicationContext applicationContext;
 
@@ -200,21 +160,6 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     protected RetryingDatabaseOperationFacade retryingDatabaseOperationFacade;
 
     protected UserDAO userDao;
-
-    /**
-     * given a site ID return the configuration as a document
-     * This method allows extensions to add additional properties to the configuration that
-     * are not made available through the site configuration object
-     *
-     * @param site the name of the site
-     * @return a Document containing the entire site configuration
-     */
-    @Override
-    @ValidateParams
-    public Document getSiteConfiguration(@ValidateStringParam(name = "site") String site)
-            throws SiteConfigNotFoundException {
-        return _siteServiceDAL.getSiteConfiguration(site);
-    }
 
     @Override
     public Set<String> getAllAvailableSites() {
@@ -232,13 +177,13 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
+    @Valid
     public void createSiteFromBlueprint(
-            @ValidateStringParam(name = "blueprintId") String blueprintId,
-            @ValidateStringParam(name = "siteId", maxLength = 50, whitelistedPatterns = "[a-z0-9\\-]*") String siteId,
-            @ValidateNoTagsParam(name = "siteName") String siteName,
-            @ValidateStringParam(name = "sandboxBranch") String sandboxBranch,
-            @ValidateNoTagsParam(name = "desc") String desc,
+            @ValidateStringParam String blueprintId,
+            @Size(max = 50) @ValidateStringParam(whitelistedPatterns = "[a-z0-9\\-]*") String siteId,
+            @ValidateNoTagsParam String siteName,
+            @ValidateStringParam String sandboxBranch,
+            @ValidateNoTagsParam String desc,
             Map<String, String> params, boolean createAsOrphan)
             throws SiteAlreadyExistsException, SiteCreationException, DeployerTargetException,
             BlueprintNotFoundException, MissingPluginParameterException {
@@ -446,7 +391,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
                         if (contentDoc != null) {
                             Element rootElement = contentDoc.getRootElement();
                             String internalName = rootElement.valueOf(DOCUMENT_ELM_INTERNAL_TITLE);
-                            if (StringUtils.isNotEmpty(internalName)) {
+                            if (isNotEmpty(internalName)) {
                                 label = internalName;
                             }
                             contentTypeId = rootElement.valueOf(DOCUMENT_ELM_CONTENT_TYPE);
@@ -500,13 +445,13 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
                                   Path createFileScriptPath) throws IOException {
         Path p = Paths.get(path);
         List<Path> parts = new LinkedList<>();
-        if (Objects.nonNull(p.getParent())) {
+        if (nonNull(p.getParent())) {
             p.getParent().iterator().forEachRemaining(parts::add);
         }
         String currentPath = StringUtils.EMPTY;
-        if (CollectionUtils.isNotEmpty(parts)) {
+        if (isNotEmpty(parts)) {
             for (Path ancestor : parts) {
-                if (StringUtils.isNotEmpty(ancestor.toString())) {
+                if (isNotEmpty(ancestor.toString())) {
                     currentPath = currentPath + FILE_SEPARATOR + ancestor;
                     Files.write(createFileScriptPath, insertItemRow(siteId, currentPath, null, NEW.value, null, userId
                             , now, userId, now, null, ancestor.toString(), null, CONTENT_TYPE_FOLDER, null,
@@ -521,7 +466,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     private void addUpdateParentIdScriptSnippets(long siteId, String path, Path updateParentIdScriptPath) throws IOException {
         String parentPath = FilenameUtils.getPrefix(path) +
                 FilenameUtils.getPathNoEndSeparator(StringUtils.replace(path, "/index.xml", ""));
-        if (StringUtils.isNotEmpty(parentPath) && !StringUtils.equals(parentPath, path)) {
+        if (isNotEmpty(parentPath) && !StringUtils.equals(parentPath, path)) {
             addUpdateParentIdScriptSnippets(siteId, parentPath, updateParentIdScriptPath);
             if (StringUtils.endsWith(path, "/index.xml")) {
                 addUpdateParentIdScriptSnippets(siteId, StringUtils.replace(path,
@@ -535,7 +480,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
 
     private void addDependenciesScriptSnippets(String siteId, String path, String oldPath, Path file) throws IOException {
         long startDependencyResolver = logger.isDebugEnabled() ? System.currentTimeMillis() : 0L;
-        Map<String, Set<String>> dependencies = dependencyServiceInternal.resolveDependnecies(siteId, path);
+        Map<String, Set<String>> dependencies = dependencyServiceInternal.resolveDependencies(siteId, path);
         if (logger.isDebugEnabled()) {
             logger.debug("Dependency resolver for site '{}' path '{}' finished in '{}' milliseconds",
                     siteId, path, (System.currentTimeMillis() - startDependencyResolver));
@@ -549,7 +494,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
                     StandardOpenOption.APPEND);
             Files.write(file, "\n\n".getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
         }
-        if (Objects.nonNull(dependencies) && !dependencies.isEmpty()) {
+        if (nonNull(dependencies) && !dependencies.isEmpty()) {
             for (Map.Entry<String, Set<String>> entry : dependencies.entrySet()) {
                 for (String targetPath : entry.getValue()) {
                     Files.write(file, insertDependencyRow(siteId, path, targetPath, entry.getKey())
@@ -593,7 +538,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
             try {
                 if (!groupServiceInternal.groupExists(-1, group)) {
                     try {
-                        groupServiceInternal.createGroup(DEFAULT_ORGANIZATION_ID, group, description);
+                        groupServiceInternal.createGroup(DEFAULT_ORGANIZATION_ID, group, description, false);
                     } catch (GroupAlreadyExistsException e) {
                         throw new IllegalStateException(e);
                     }
@@ -607,19 +552,19 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
+    @Valid
     public void createSiteWithRemoteOption(
-            @ValidateStringParam(name = "siteId", maxLength = 50, whitelistedPatterns = "[a-z0-9\\-]*") String siteId,
-            @ValidateStringParam(name = "siteName") String siteName,
-            @ValidateStringParam(name = "sandboxBranch") String sandboxBranch,
-            @ValidateNoTagsParam(name = "description") String description,
+            @Size(max = 50) @ValidateStringParam(whitelistedPatterns = "[a-z0-9\\-]*") String siteId,
+            @ValidateStringParam String siteName,
+            @ValidateStringParam String sandboxBranch,
+            @ValidateNoTagsParam String description,
             String blueprintName,
-            @ValidateStringParam(name = "remoteName") String remoteName,
-            @ValidateStringParam(name = "remoteUrl") String remoteUrl,
+            @ValidateStringParam String remoteName,
+            @ValidateStringParam String remoteUrl,
             String remoteBranch, boolean singleBranch, String authenticationType,
             String remoteUsername, String remotePassword, String remoteToken,
             String remotePrivateKey,
-            @ValidateStringParam(name = "createOption") String createOption,
+            @ValidateStringParam String createOption,
             Map<String, String> params, boolean createAsOrphan)
             throws ServiceLayerException, InvalidRemoteRepositoryException, InvalidRemoteRepositoryCredentialsException,
             RemoteRepositoryNotFoundException, InvalidRemoteUrlException {
@@ -699,11 +644,11 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
         String searchEngine = studioConfiguration.getProperty(StudioConfiguration.PREVIEW_SEARCH_ENGINE);
 
         PluginDescriptor descriptor = sitesServiceInternal.getSiteBlueprintDescriptor(siteId);
-        if (Objects.nonNull(descriptor) && Objects.nonNull(descriptor.getPlugin())) {
+        if (nonNull(descriptor) && nonNull(descriptor.getPlugin())) {
             searchEngine = descriptor.getPlugin().getSearchEngine();
             logger.info("Using search engine '{}' based on the configuration of the plugin descriptor while " +
                     "creating site '{}'", searchEngine, siteId);
-        } else if (Objects.nonNull(descriptor) && Objects.nonNull(descriptor.getBlueprint())) {
+        } else if (nonNull(descriptor) && nonNull(descriptor.getBlueprint())) {
             searchEngine = descriptor.getBlueprint().getSearchEngine();
             logger.info("Using search engine '{}' based on the configuration of the blueprint while " +
                     "creating site '{}'", searchEngine, siteId);
@@ -827,8 +772,8 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public boolean deleteSite(@ValidateStringParam(name = "siteId") String siteId) {
+    @Valid
+    public boolean deleteSite(@ValidateStringParam String siteId) {
         boolean success = true;
         logger.info("Delete site '{}'", siteId);
         try {
@@ -884,6 +829,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
             contentRepository.removeRemoteRepositoriesForSite(siteId);
             auditServiceInternal.deleteAuditLogForSite(siteFeed.getId());
             insertDeleteSiteAuditLog(siteId, siteFeed.getName());
+            applicationContext.publishEvent(new SiteDeleteEvent(siteFeed.getSiteId(), siteFeed.getSiteUuid()));
         } catch (Exception e) {
             success = false;
             logger.error("Failed to delete the database records for site '{}'", siteId, e);
@@ -953,32 +899,27 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public void syncRepository(@ValidateStringParam(name = "site") String site) throws SiteNotFoundException {
-        if (!exists(site)) {
-            throw new SiteNotFoundException();
+    @Valid
+    public void syncRepository(@ValidateStringParam String site) throws SiteNotFoundException {
+        checkSiteExists(site);
+        String lastDbCommitId = siteFeedMapper.getLastCommitId(site);
+        if (lastDbCommitId != null) {
+            syncDatabaseWithRepository.execute(site, lastDbCommitId);
         } else {
-            String lastDbCommitId =
-                    siteFeedMapper.getLastCommitId(site, studioClusterUtils.getClusterNodeLocalAddress());
-            if (lastDbCommitId != null) {
-                syncDatabaseWithRepository.execute(site, lastDbCommitId);
-            } else {
-                rebuildDatabase(site);
-            }
+            rebuildDatabase(site);
         }
     }
 
     @Override
-    @ValidateParams
-    public void rebuildDatabase(@ValidateStringParam(name = "site") String site) {
+    @Valid
+    public void rebuildDatabase(@ValidateStringParam String site) {
         rebuildRepositoryMetadata.execute(site);
     }
 
-
     @Override
-    @ValidateParams
-    public void updateLastCommitId(@ValidateStringParam(name = "site") String site,
-                                   @ValidateStringParam(name = "commitId") String commitId) {
+    @Valid
+    public void updateLastCommitId(@ValidateStringParam String site,
+                                   @ValidateStringParam String commitId) {
         Map<String, Object> params = new HashMap<>();
         params.put("siteId", site);
         params.put("lastCommitId", commitId);
@@ -1002,16 +943,16 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public boolean syncDatabaseWithRepo(@ValidateStringParam(name = "site") String site,
-                                        @ValidateStringParam(name = "fromCommitId") String fromCommitId) {
+    @Valid
+    public boolean syncDatabaseWithRepo(@ValidateStringParam String site,
+                                        @ValidateStringParam String fromCommitId) {
         return syncDatabaseWithRepo(site, fromCommitId, true);
     }
 
     @Override
-    @ValidateParams
-    public boolean syncDatabaseWithRepo(@ValidateStringParam(name = "site") String site,
-                                        @ValidateStringParam(name = "fromCommitId") String fromCommitId,
+    @Valid
+    public boolean syncDatabaseWithRepo(@ValidateStringParam String site,
+                                        @ValidateStringParam String fromCommitId,
                                         boolean generateAuditLog) {
         // TODO: Switch to new item table instead of using old state and metadata - Dejan
         // TODO: Remove references to old data layer - Dejan
@@ -1039,8 +980,18 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
                 site, (StringUtils.isEmpty(fromCommitId) ? "none (empty repo)" : fromCommitId));
         logger.debug("The operations to sync for site '{}' are", site);
         for (RepoOperation repoOperation : repoOperationsDelta) {
-            logger.debug("\tSite '{}' Operation '{}' path '{}'",
-                    site, repoOperation.getAction().toString(), repoOperation.getPath());
+            RepoOperation.Action action = repoOperation.getAction();
+            if (action == RepoOperation.Action.DELETE) {
+                logger.warn("\tSite '{}' Operation '{}' path '{}'",
+                        site, action, repoOperation.getPath());
+            } else if (action == RepoOperation.Action.CREATE) {
+                logger.info("\tSite '{}' Operation '{}' path '{}'",
+                        site, action, repoOperation.getPath());
+            } else {
+                logger.debug("\tSite '{}' Operation '{}' path '{}'",
+                        site, action, repoOperation.getPath());
+            }
+
         }
 
         long startUpdateDBMark = logger.isDebugEnabled() ? System.currentTimeMillis() : 0L;
@@ -1090,6 +1041,14 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
 
         if (logger.isDebugEnabled()) {
             logger.debug("Sync database from repo finished in '{}' milliseconds", (System.currentTimeMillis() - startSyncRepoMark));
+        }
+
+        // Sync all preview deployers
+        try {
+            logger.debug("Sync preview for site '{}'", site);
+            applicationContext.publishEvent(new RepositoryEvent(site));
+        } catch (Exception e) {
+            logger.error("Failed to sync preview for site '{}'", site, e);
         }
         return toReturn;
     }
@@ -1148,7 +1107,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
                             if (contentDoc != null) {
                                 Element rootElement = contentDoc.getRootElement();
                                 String internalName = rootElement.valueOf(DOCUMENT_ELM_INTERNAL_TITLE);
-                                if (StringUtils.isNotEmpty(internalName)) {
+                                if (isNotEmpty(internalName)) {
                                     label = internalName;
                                 }
                                 contentTypeId = rootElement.valueOf(DOCUMENT_ELM_CONTENT_TYPE);
@@ -1218,7 +1177,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
                                 if (contentDoc != null) {
                                     Element rootElement = contentDoc.getRootElement();
                                     String internalName = rootElement.valueOf(DOCUMENT_ELM_INTERNAL_TITLE);
-                                    if (StringUtils.isNotEmpty(internalName)) {
+                                    if (isNotEmpty(internalName)) {
                                         label = internalName;
                                     }
                                     contentTypeId = rootElement.valueOf(DOCUMENT_ELM_CONTENT_TYPE);
@@ -1295,7 +1254,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
                             if (contentDoc != null) {
                                 Element rootElement = contentDoc.getRootElement();
                                 String internalName = rootElement.valueOf(DOCUMENT_ELM_INTERNAL_TITLE);
-                                if (StringUtils.isNotEmpty(internalName)) {
+                                if (isNotEmpty(internalName)) {
                                     label = internalName;
                                 }
                                 contentTypeId = rootElement.valueOf(DOCUMENT_ELM_CONTENT_TYPE);
@@ -1366,41 +1325,41 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public boolean exists(@ValidateStringParam(name = "site") String site) {
+    @Valid
+    public boolean exists(@ValidateStringParam String site) {
         return siteFeedMapper.exists(site) > 0;
     }
 
     @Override
-    @ValidateParams
-    public void checkSiteExists(@ValidateStringParam(name = "site") final String site) throws SiteNotFoundException {
+    @Valid
+    public void checkSiteExists(@ValidateStringParam final String site) throws SiteNotFoundException {
         if (!exists(site)) {
             throw new SiteNotFoundException(format("Site '%s' not found.", site));
         }
     }
 
     @Override
-    @ValidateParams
-    public boolean existsById(@ValidateStringParam(name = "siteId") String siteId) {
+    @Valid
+    public boolean existsById(@ValidateStringParam String siteId) {
         return siteFeedMapper.existsById(siteId) > 0;
     }
 
     @Override
-    @ValidateParams
-    public boolean existsByName(@ValidateStringParam(name = "siteName") String siteName) {
+    @Valid
+    public boolean existsByName(@ValidateStringParam String siteName) {
         return siteFeedMapper.existsByName(siteName) > 0;
     }
 
     @Override
-    @ValidateParams
+    @Valid
     public int getSitesPerUserTotal()
             throws UserNotFoundException, ServiceLayerException {
         return getSitesPerUserTotal(securityService.getCurrentUser());
     }
 
     @Override
-    @ValidateParams
-    public int getSitesPerUserTotal(@ValidateStringParam(name = "username") String username)
+    @Valid
+    public int getSitesPerUserTotal(@ValidateStringParam String username)
             throws UserNotFoundException, ServiceLayerException {
         if (securityService.userExists(username)) {
             Map<String, Object> params = new HashMap<>();
@@ -1412,18 +1371,18 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public List<SiteFeed> getSitesPerUser(@ValidateIntegerParam(name = "start") int start,
-                                          @ValidateIntegerParam(name = "number") int number)
+    @Valid
+    public List<SiteFeed> getSitesPerUser(int start,
+                                          int number)
             throws UserNotFoundException, ServiceLayerException {
         return getSitesPerUser(securityService.getCurrentUser(), start, number);
     }
 
     @Override
-    @ValidateParams
-    public List<SiteFeed> getSitesPerUser(@ValidateStringParam(name = "username") String username,
-                                          @ValidateIntegerParam(name = "start") int start,
-                                          @ValidateIntegerParam(name = "number") int number)
+    @Valid
+    public List<SiteFeed> getSitesPerUser(@ValidateStringParam String username,
+                                          int start,
+                                          int number)
             throws UserNotFoundException, ServiceLayerException {
         if (securityService.userExists(username)) {
             Map<String, Object> params = new HashMap<>();
@@ -1444,8 +1403,8 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public SiteFeed getSite(@ValidateStringParam(name = "siteId") String siteId) throws SiteNotFoundException {
+    @Valid
+    public SiteFeed getSite(@ValidateStringParam String siteId) throws SiteNotFoundException {
         if (exists(siteId)) {
             Map<String, Object> params = new HashMap<>();
             params.put("siteId", siteId);
@@ -1456,8 +1415,8 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public boolean isPublishingEnabled(@ValidateStringParam(name = "siteId") String siteId) {
+    @Valid
+    public boolean isPublishingEnabled(@ValidateStringParam String siteId) {
         try {
             SiteFeed siteFeed = getSite(siteId);
             return siteFeed.getPublishingEnabled() > 0;
@@ -1469,8 +1428,8 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public boolean enablePublishing(@ValidateStringParam(name = "siteId") String siteId, boolean enabled)
+    @Valid
+    public boolean enablePublishing(@ValidateStringParam String siteId, boolean enabled)
             throws SiteNotFoundException {
         if (exists(siteId)) {
             Map<String, Object> params = new HashMap<>();
@@ -1484,9 +1443,9 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    @ValidateParams
-    public boolean updatePublishingStatus(@ValidateStringParam(name = "siteId") String siteId,
-                                          @ValidateStringParam(name = "status") String status)
+    @Valid
+    public boolean updatePublishingStatus(@ValidateStringParam String siteId,
+                                          @ValidateStringParam String status)
             throws SiteNotFoundException {
         if (exists(siteId)) {
             retryingDatabaseOperationFacade.retry(() -> siteFeedMapper.updatePublishingStatus(siteId, status));
@@ -1569,38 +1528,13 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    public boolean tryLockPublishingForSite(String siteId, String lockOwnerId, int ttl) {
-        logger.debug("Attempt to lock publishing in site '{}' with lock owner '{}'", siteId, lockOwnerId);
-        int result = siteFeedMapper.tryLockPublishingForSite(siteId, lockOwnerId, ttl);
-        if (result == 1) {
-            logger.debug("Locked publishing in site '{}' with lock owner '{}'", siteId, lockOwnerId);
-        } else {
-            logger.debug("Failed to lock publishing in site '{}' with lock owner '{}'", siteId, lockOwnerId);
-        }
-        return result == 1;
-    }
-
-    @Override
-    public boolean unlockPublishingForSite(String siteId, String lockOwnerId) {
-        logger.debug("Unlock publishing in site '{}' with lock owner '{}'", siteId, lockOwnerId);
-        retryingDatabaseOperationFacade.retry(() -> siteFeedMapper.unlockPublishingForSite(siteId, lockOwnerId));
-        return true;
-    }
-
-    @Override
-    public void updatePublishingLockHeartbeatForSite(String siteId) {
-        logger.debug("Update publishing lock heartbeat in site '{}'", siteId);
-        retryingDatabaseOperationFacade.retry(() -> siteFeedMapper.updatePublishingLockHeartbeatForSite(siteId));
-    }
-
-    @Override
     public String getLastCommitId(String siteId) {
-        return siteFeedMapper.getLastCommitId(siteId, studioClusterUtils.getClusterNodeLocalAddress());
+        return siteFeedMapper.getLastCommitId(siteId);
     }
 
     @Override
     public String getLastVerifiedGitlogCommitId(String siteId) {
-        return siteFeedMapper.getLastVerifiedGitlogCommitId(siteId, studioClusterUtils.getClusterNodeLocalAddress());
+        return siteFeedMapper.getLastVerifiedGitlogCommitId(siteId);
     }
 
     @Override
@@ -1615,12 +1549,12 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
 
     @Override
     public String getSiteState(String siteId) {
-        return siteFeedMapper.getSiteState(siteId, studioClusterUtils.getClusterNodeLocalAddress());
+        return siteFeedMapper.getSiteState(siteId);
     }
 
     @Override
     public boolean isPublishedRepoCreated(String siteId) {
-        return siteFeedMapper.getPublishedRepoCreated(siteId, studioClusterUtils.getClusterNodeLocalAddress()) > 0;
+        return siteFeedMapper.getPublishedRepoCreated(siteId) > 0;
     }
 
     @Override
@@ -1630,7 +1564,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
 
     @Override
     public String getLastSyncedGitlogCommitId(String siteId) {
-        return siteFeedMapper.getLastSyncedGitlogCommitId(siteId, studioClusterUtils.getClusterNodeLocalAddress());
+        return siteFeedMapper.getLastSyncedGitlogCommitId(siteId);
     }
 
     public List<String> getDefaultGroups() {
@@ -1638,15 +1572,21 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
     }
 
     @Override
-    public void setApplicationContext(ApplicationContext applicationContext) {
-        this.applicationContext = applicationContext;
+    public boolean checkSiteUuid(final String siteId, final String siteUuid) {
+        try {
+            Path path = Paths.get(studioConfiguration.getProperty(REPO_BASE_PATH),
+                    studioConfiguration.getProperty(SITES_REPOS_PATH), siteId, SITE_UUID_FILENAME);
+            return Files.readAllLines(path).stream()
+                    .anyMatch(siteUuid::equals);
+        } catch (IOException e) {
+            logger.info("Invalid site UUID in site '{}'", siteId);
+            return false;
+        }
     }
 
-    /**
-     * setter site service dal
-     */
-    public void setSiteServiceDAL(SiteServiceDAL service) {
-        _siteServiceDAL = service;
+    @Override
+    public void setApplicationContext(@NonNull ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
     }
 
     public void setContentService(ContentService contentService) {
@@ -1705,7 +1645,7 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
         this.upgradeManager = upgradeManager;
     }
 
-    public void setSitesServiceInternal(SitesServiceInternal sitesServiceInternal) {
+    public void setSitesServiceInternal(SitesService sitesServiceInternal) {
         this.sitesServiceInternal = sitesServiceInternal;
     }
 
@@ -1723,10 +1663,6 @@ public class SiteServiceImpl implements SiteService, ApplicationContextAware {
 
     public void setItemServiceInternal(ItemServiceInternal itemServiceInternal) {
         this.itemServiceInternal = itemServiceInternal;
-    }
-
-    public void setStudioClusterUtils(StudioClusterUtils studioClusterUtils) {
-        this.studioClusterUtils = studioClusterUtils;
     }
 
     public void setConfigurationPatterns(String[] configurationPatterns) {

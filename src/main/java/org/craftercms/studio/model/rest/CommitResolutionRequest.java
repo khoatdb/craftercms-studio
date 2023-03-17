@@ -16,8 +16,14 @@
 
 package org.craftercms.studio.model.rest;
 
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+
+import javax.validation.constraints.NotEmpty;
+
 public class CommitResolutionRequest {
 
+    @NotEmpty
+    @ValidSiteId
     private String siteId;
     private String commitMessage;
 

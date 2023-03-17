@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -125,14 +125,14 @@ public class XsltTest {
             },
             new Object[] {
                 new ClassPathResource("crafter/studio/upgrade/4.0.x/config/ui/ui-v4.0.2.xslt"),
-                new ClassPathResource("crafter/studio/upgrade/xslt/ui-v4.0.2/input.xml"),
-                new ClassPathResource("crafter/studio/upgrade/xslt/ui-v4.0.2/expected.xml"),
+                new ClassPathResource("crafter/studio/upgrade/xslt/ui/v4.0.2/input.xml"),
+                new ClassPathResource("crafter/studio/upgrade/xslt/ui/v4.0.2/expected.xml"),
                 emptyMap()
             },
             new Object[] {
                     new ClassPathResource("crafter/studio/upgrade/4.0.x/config/ui/ui-v4.0.5.xslt"),
-                    new ClassPathResource("crafter/studio/upgrade/xslt/ui-v4.0.5/input.xml"),
-                    new ClassPathResource("crafter/studio/upgrade/xslt/ui-v4.0.5/expected.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/ui/v4.0.5/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/ui/v4.0.5/expected.xml"),
                     emptyMap()
             },
             new Object[]{
@@ -214,6 +214,90 @@ public class XsltTest {
                 new ClassPathResource("crafter/studio/upgrade/xslt/site-config-tools/v4.0.4/with-components/site-config-tools.xml"),
                 new ClassPathResource("crafter/studio/upgrade/xslt/site-config-tools/v4.0.4/with-components/site-config-tools-expected.xml"),
                 emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/site-config/site-config-v4.0.1.2.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/site-config/4.0.1.2/oob/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/site-config/4.0.1.2/oob/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/site-config/site-config-v4.0.1.2.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/site-config/4.0.1.2/missingFolders/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/site-config/4.0.1.2/missingFolders/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/site-config/site-config-v4.0.1.2.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/site-config/4.0.1.2/alreadyConfigured/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/site-config/4.0.1.2/alreadyConfigured/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/permission-mappings-config/" +
+                            "permission-mappings-config-v4.0.9.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.9/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.9/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/4.0.1.11/system/global-menu-config.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/global-menu/4.0.1.11/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/global-menu/4.0.1.11/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/permission-mappings-config/" +
+                            "permission-mappings-config-v4.0.10.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.10/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.10/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/permission-mappings-config/" +
+                            "permission-mappings-config-v4.0.11.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.11/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.11/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/config-list/config-list-v4.0.3.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/config-list/4.0.3/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/config-list/4.0.3/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/permission-mappings-config/" +
+                            "permission-mappings-config-v4.0.12.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.12/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.12/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/permission-mappings-config/" +
+                            "permission-mappings-config-v4.0.12.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.12/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/permission-mappings-config/permission-mappings-config-v4.0.12/expected.xml"),
+                    emptyMap()
+            },
+            new Object[] {
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/site-config-tools/site-config-tools-v4.0.5.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/site-config-tools/v4.0.5/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/site-config-tools/v4.0.5/expected.xml"),
+                    emptyMap()
+            },
+            new Object[]{
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/4.0.1.15/system/" +
+                            "global-permission-mappings-config.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/global-permission-mappings/4.0.1.15/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/global-permission-mappings/4.0.1.15/expected.xml"),
+                    emptyMap()
+            },
+            new Object[]{
+                    new ClassPathResource("crafter/studio/upgrade/4.0.x/config/ui/ui-v4.0.6.xslt"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/ui/v4.0.6/input.xml"),
+                    new ClassPathResource("crafter/studio/upgrade/xslt/ui/v4.0.6/expected.xml"),
+                    emptyMap()
             }
         };
     }
@@ -259,6 +343,9 @@ public class XsltTest {
                         .checkForSimilar()
                         .build();
 
+                if (diff.hasDifferences()){
+                    logger.debug(new String(output.toByteArray()));
+                }
                 // there should not be any differences
                 assertEquals(IterableUtils.size(diff.getDifferences()), 0,
                         "The result XML should not change the second time");

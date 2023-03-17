@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+  ~ Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
   ~
   ~ This program is free software: you can redistribute it and/or modify
   ~ it under the terms of the GNU General Public License version 3 as published by
@@ -32,6 +32,39 @@
         <constructor-arg name="maxAge" value="#{studioConfiguration.getProperty('studio.cache.assets.maxAge')}"/>
     </bean>
 
+    <!-- ESAPI. Override default security configuration -->
+    <!-- Letting spring to create the instance, so it can access Studio Configuration and
+     other spring beans-->
+    <bean class="org.springframework.beans.factory.config.MethodInvokingBean">
+        <property name="targetClass" value="org.craftercms.studio.impl.v2.validation.StudioEsapiSecurityConfiguration"/>
+        <property name="targetMethod" value="setInstance"/>
+        <property name="arguments">
+            <bean class="org.craftercms.studio.impl.v2.validation.StudioEsapiSecurityConfiguration">
+            </bean>
+        </property>
+    </bean>
+
+    <bean class="org.springframework.beans.factory.config.MethodInvokingBean">
+        <property name="targetClass" value="org.owasp.esapi.ESAPI"/>
+        <property name="targetMethod" value="initialize"/>
+        <property name="arguments">
+            <array>
+                <value>org.craftercms.studio.impl.v2.validation.StudioEsapiSecurityConfiguration</value>
+            </array>
+        </property>
+    </bean>
+
+    <mvc:interceptors>
+        <!-- By adding this interceptor we can keep the list of urls to include etag header and
+         have different cacheControl settings per path/pattern-->
+        <bean class="org.craftercms.studio.impl.v2.utils.spring.WebContentInterceptorFactory">
+            <constructor-arg name="cacheControl" ref="cacheControl"/>
+            <constructor-arg name="cachedPaths"
+                             value="#{studioConfiguration.getProperty('studio.cache.assets.maxAge.includeUrls')}"/>
+            <constructor-arg name="alwaysRevalidatePaths" value="${crafter.engine.header.etag.include.urls}"/>
+        </bean>
+    </mvc:interceptors>
+
     <bean id="crafter.staticAssetsRequestHandler" class="org.craftercms.engine.controller.StaticAssetsRequestHandler"
           init-method="init">
         <property name="contentStoreService" ref="crafter.contentStoreService"/>
@@ -45,9 +78,17 @@
         <entry key="/*" value-ref="crafter.pageRenderController"/>
     </util:map>
 
-    <mvc:annotation-driven>
+    <mvc:annotation-driven validator="commonValidator">
         <mvc:path-matching registered-suffixes-only="true" />
     </mvc:annotation-driven>
+
+    <!--
+    This allows to validate params for "in-line annotated methods"
+    e.g.: public ResponseBody clearCache(@ValidSiteId @RequestParam String siteId)
+     -->
+    <bean id="methodValidationPostProcessor" class="org.springframework.validation.beanvalidation.MethodValidationPostProcessor">
+        <property name="validator" ref="commonValidator"/>
+    </bean>
 
     <!-- ////////////////////////////////////// -->
     <!--      Controllers                       -->
@@ -55,7 +96,7 @@
     <bean id="studioRestExceptionHandlers" class="org.craftercms.studio.controller.rest.v2.ExceptionHandlers"/>
 
     <bean id="studioGroupsController" class="org.craftercms.studio.controller.rest.v2.GroupsController">
-        <property name="groupService" ref="groupService" />
+        <constructor-arg name="groupService" ref="groupService" />
     </bean>
 
     <bean id="studioUsersController" class="org.craftercms.studio.controller.rest.v2.UsersController">
@@ -64,18 +105,13 @@
     </bean>
 
     <bean id="studioUiController" class="org.craftercms.studio.controller.rest.v2.UiController">
-        <property name="uiService" ref="uiService"/>
+        <constructor-arg name="uiService" ref="uiService"/>
     </bean>
 
     <bean id="studioS3Controller" class="org.craftercms.studio.controller.rest.v2.aws.AwsS3Controller"/>
 
     <bean id="studioMediaConvertController"
           class="org.craftercms.studio.controller.rest.v2.aws.AwsMediaConvertController"/>
-
-    <bean id="studioClusterManangementController"
-          class="org.craftercms.studio.controller.rest.v2.ClusterManagementController" >
-        <property name="clusterManagementService" ref="clusterManagementService" />
-    </bean>
 
     <bean id="studioSitesController" class="org.craftercms.studio.controller.rest.v2.SitesController">
         <constructor-arg name="sitesService" ref="sitesService" />
@@ -84,12 +120,11 @@
     </bean>
 
     <bean id="searchController" class="org.craftercms.studio.controller.rest.v2.SearchController">
-        <property name="searchService" ref="searchService"/>
+        <constructor-arg name="searchService" ref="searchService"/>
     </bean>
 
     <bean id="auditController" class="org.craftercms.studio.controller.rest.v2.AuditController">
         <property name="auditService" ref="auditService" />
-        <property name="siteService" ref="cstudioSiteServiceSimple" />
     </bean>
 
     <bean id="monitoringController" class="org.craftercms.studio.controller.rest.v2.MonitoringController">
@@ -99,25 +134,21 @@
     </bean>
 
     <bean id="cmisController" class="org.craftercms.studio.controller.rest.v2.CmisController">
-        <property name="cmisService" ref="cmisService" />
     </bean>
 
     <bean id="repositoryManagementController"
           class="org.craftercms.studio.controller.rest.v2.RepositoryManagementController">
-        <property name="repositoryManagementService" ref="repositoryManagementService" />
-        <property name="siteService" ref="cstudioSiteServiceSimple" />
+        <constructor-arg name="repositoryManagementService" ref="repositoryManagementService" />
     </bean>
 
     <bean id="configurationController" class="org.craftercms.studio.controller.rest.v2.ConfigurationController">
         <constructor-arg name="configurationService" ref="configurationService"/>
         <constructor-arg name="studioConfiguration" ref="studioConfiguration"/>
         <constructor-arg name="contentTypeService" ref="contentTypeService"/>
-        <constructor-arg name="cacheControl" ref="cacheControl"/>
     </bean>
 
     <bean id="contentController" class="org.craftercms.studio.controller.rest.v2.ContentController">
         <constructor-arg name="contentService" ref="contentService"/>
-        <constructor-arg name="siteService" ref="cstudioSiteServiceSimple"/>
         <constructor-arg name="dependencyService" ref="dependencyService"/>
         <constructor-arg name="clipboardService" ref="clipboardService"/>
         <constructor-arg name="workflowService" ref="studio.workflowService" />
@@ -130,7 +161,7 @@
     </bean>
 
     <bean id="dependencyController" class="org.craftercms.studio.controller.rest.v2.DependencyController" >
-        <property name="dependencyService" ref="dependencyService" />
+        <constructor-arg name="dependencyService" ref="dependencyService" />
     </bean>
 
     <bean id="marketplaceController" class="org.craftercms.studio.controller.rest.v2.MarketplaceController">
@@ -142,9 +173,8 @@
     </bean>
 
     <bean id="publishController" class="org.craftercms.studio.controller.rest.v2.PublishController">
-        <property name="publishService" ref="publishService" />
-        <property name="siteService" ref="cstudioSiteServiceSimple" />
-        <property name="sitesService" ref="sitesService" />
+        <constructor-arg name="publishService" ref="publishService" />
+        <constructor-arg name="sitesService" ref="sitesService" />
     </bean>
 
     <bean id="securityController" class="org.craftercms.studio.controller.rest.v2.SecurityController">
@@ -157,12 +187,11 @@
     </bean>
 
     <bean id="dashboardController" class="org.craftercms.studio.controller.rest.v2.DashboardController">
-        <property name="dashboardService" ref="dashboardService" />
+        <constructor-arg name="dashboardService" ref="dashboardService" />
     </bean>
 
     <bean id="studio.workflowController" class="org.craftercms.studio.controller.rest.v2.WorkflowController" >
-        <property name="workflowService" ref="studio.workflowService" />
-        <property name="siteService" ref="cstudioSiteServiceSimple" />
+        <constructor-arg name="workflowService" ref="studio.workflowService" />
     </bean>
 
     <!-- Access Token -->

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -20,7 +20,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.craftercms.commons.security.permissions.DefaultPermission;
 import org.craftercms.commons.security.permissions.annotations.HasPermission;
 import org.craftercms.commons.security.permissions.annotations.ProtectedResourceId;
-import org.craftercms.commons.validation.annotations.param.ValidateParams;
 import org.craftercms.commons.validation.annotations.param.ValidateSecurePathParam;
 import org.craftercms.commons.validation.annotations.param.ValidateStringParam;
 import org.craftercms.core.exception.PathNotFoundException;
@@ -56,24 +55,24 @@ import org.craftercms.studio.model.rest.content.GetChildrenResult;
 import org.craftercms.studio.model.rest.content.SandboxItem;
 import org.craftercms.studio.permissions.CompositePermission;
 import org.craftercms.studio.permissions.PermissionOrOwnership;
+import org.dom4j.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.io.Resource;
 
+import javax.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.OPERATION_APPROVE;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.TARGET_TYPE_CONTENT_ITEM;
-import static org.craftercms.studio.api.v2.dal.AuditLogConstants.TARGET_TYPE_SITE;
+import static java.lang.String.format;
+import static org.craftercms.studio.api.v2.dal.AuditLogConstants.*;
 import static org.craftercms.studio.permissions.CompositePermissionResolverImpl.PATH_LIST_RESOURCE_ID;
 import static org.craftercms.studio.permissions.PermissionResolverImpl.PATH_RESOURCE_ID;
 import static org.craftercms.studio.permissions.PermissionResolverImpl.SITE_ID_RESOURCE_ID;
-import static java.lang.String.format;
 import static org.craftercms.studio.permissions.StudioPermissionsConstants.*;
 
 public class ContentServiceImpl implements ContentService, ApplicationContextAware {
@@ -94,7 +93,9 @@ public class ContentServiceImpl implements ContentService, ApplicationContextAwa
     private org.craftercms.studio.api.v1.service.content.ContentService contentServiceV1;
 
     @Override
-    public List<QuickCreateItem> getQuickCreatableContentTypes(String siteId) {
+    // TODO: JM: Should we have a "is member of site" validation here?
+    public List<QuickCreateItem> getQuickCreatableContentTypes(String siteId) throws SiteNotFoundException {
+        siteService.checkSiteExists(siteId);
         return contentTypeServiceInternal.getQuickCreatableContentTypes(siteId);
     }
 
@@ -113,7 +114,8 @@ public class ContentServiceImpl implements ContentService, ApplicationContextAwa
     @Override
     @HasPermission(type = CompositePermission.class, action = PERMISSION_CONTENT_DELETE)
     public List<String> getChildItems(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
-                                      @ProtectedResourceId(PATH_LIST_RESOURCE_ID) List<String> paths) {
+                                      @ProtectedResourceId(PATH_LIST_RESOURCE_ID) List<String> paths) throws SiteNotFoundException {
+        siteService.checkSiteExists(siteId);
         List<String> subtreeItems = contentServiceInternal.getSubtreeItems(siteId, paths);
         List<String> childItems = new ArrayList<>();
         childItems.addAll(subtreeItems);
@@ -187,15 +189,15 @@ public class ContentServiceImpl implements ContentService, ApplicationContextAwa
                                                String keyword, List<String> systemTypes, List<String> excludes,
                                                String sortStrategy, String order, int offset, int limit)
             throws ServiceLayerException, UserNotFoundException {
+        siteService.checkSiteExists(siteId);
         return contentServiceInternal.getChildrenByPath(siteId, path, locale, keyword, systemTypes, excludes,
                                                         sortStrategy, order, offset, limit);
     }
 
     @Override
-    @ValidateParams
     @HasPermission(type = DefaultPermission.class, action = PERMISSION_CONTENT_READ)
-    public Item getItem(@ProtectedResourceId(SITE_ID_RESOURCE_ID) @ValidateStringParam(notEmpty = true) String siteId,
-                        @ProtectedResourceId(PATH_RESOURCE_ID) @ValidateSecurePathParam @ValidateStringParam(notEmpty = true) String path, boolean flatten)
+    public Item getItem(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
+                        @ProtectedResourceId(PATH_RESOURCE_ID)  String path, boolean flatten)
             throws SiteNotFoundException, ContentNotFoundException {
         siteService.checkSiteExists(siteId);
 
@@ -208,19 +210,42 @@ public class ContentServiceImpl implements ContentService, ApplicationContextAwa
     }
 
     @Override
-    @HasPermission(type = DefaultPermission.class, action = "get_children")
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_CONTENT_READ)
+    public Document getItemDescriptor(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
+                                      @ProtectedResourceId(PATH_RESOURCE_ID) String path, boolean flatten)
+            throws SiteNotFoundException, ContentNotFoundException {
+        siteService.checkSiteExists(siteId);
+
+        try {
+            Item item = contentServiceInternal.getItem(siteId, path, flatten);
+            Document descriptor = item.getDescriptorDom();
+            if (descriptor == null) {
+                throw new ContentNotFoundException(path, siteId, format("No descriptor found for '%s' in site '%s'", path, siteId));
+            }
+            return descriptor;
+        } catch (PathNotFoundException e) {
+            logger.error("Content not found for site '{}' at path '{}'", siteId, path, e);
+            throw new ContentNotFoundException(path, siteId, format("Content not found in site '%s' at path '%s'", siteId, path));
+        }
+    }
+
+    @Override
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_GET_CHILDREN)
     public DetailedItem getItemByPath(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
                                       @ProtectedResourceId(PATH_RESOURCE_ID) String path, boolean preferContent)
             throws ServiceLayerException, UserNotFoundException {
+        siteService.checkSiteExists(siteId);
+        contentServiceV1.checkContentExists(siteId, path);
         return contentServiceInternal.getItemByPath(siteId, path, preferContent);
     }
 
     @Override
-    @HasPermission(type = CompositePermission.class, action = "get_children")
+    @HasPermission(type = CompositePermission.class, action = PERMISSION_GET_CHILDREN)
     public List<SandboxItem> getSandboxItemsByPath(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
                                                    @ProtectedResourceId(PATH_LIST_RESOURCE_ID) List<String> paths,
                                                    boolean preferContent)
             throws ServiceLayerException, UserNotFoundException {
+        siteService.checkSiteExists(siteId);
         return contentServiceInternal.getSandboxItemsByPath(siteId, paths, preferContent);
     }
 
@@ -229,23 +254,24 @@ public class ContentServiceImpl implements ContentService, ApplicationContextAwa
     public void lockContent(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
                             @ProtectedResourceId(PATH_RESOURCE_ID) String path)
             throws UserNotFoundException, ServiceLayerException {
+        siteService.checkSiteExists(siteId);
         generalLockService.lockContentItem(siteId, path);
         try {
             var item = itemServiceInternal.getItem(siteId, path);
-            if (Objects.nonNull(item)) {
-                var username = securityService.getCurrentUser();
-                if (StringUtils.isEmpty(item.getLockOwner())) {
-                    contentServiceInternal.itemLockByPath(siteId, path);
-                    itemServiceInternal.lockItemByPath(siteId, path, username);
-                    applicationContext.publishEvent(
-                            new LockContentEvent(securityService.getAuthentication(), siteId, path, true));
-                } else {
-                    if (!StringUtils.equals(item.getLockOwner(), username)) {
-                        throw new ContentLockedByAnotherUserException(item.getLockOwner());
-                    }
-                }
+            if (Objects.isNull(item)) {
+                throw new ContentNotFoundException(path, siteId, format("Content not found in site '%s' at path '%s'",
+                        siteId, path));
+            }
+            var username = securityService.getCurrentUser();
+            if (StringUtils.isEmpty(item.getLockOwner())) {
+                contentServiceInternal.itemLockByPath(siteId, path);
+                itemServiceInternal.lockItemByPath(siteId, path, username);
+                applicationContext.publishEvent(
+                        new LockContentEvent(securityService.getAuthentication(), siteId, path, true));
             } else {
-                throw new ContentNotFoundException();
+                if (!StringUtils.equals(item.getLockOwner(), username)) {
+                    throw new ContentLockedByAnotherUserException(item.getLockOwner());
+                }
             }
         } finally {
             generalLockService.unlockContentItem(siteId, path);
@@ -256,33 +282,34 @@ public class ContentServiceImpl implements ContentService, ApplicationContextAwa
     @HasPermission(type = PermissionOrOwnership.class, action = PERMISSION_ITEM_UNLOCK)
     public void unlockContent(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
                               @ProtectedResourceId(PATH_RESOURCE_ID) String path)
-            throws ContentNotFoundException, ContentAlreadyUnlockedException {
+            throws ContentNotFoundException, ContentAlreadyUnlockedException, SiteNotFoundException {
+        siteService.checkSiteExists(siteId);
         logger.debug("Unlock item in site '{}' path '{}'", siteId, path);
         generalLockService.lockContentItem(siteId, path);
         try {
             var item = itemServiceInternal.getItem(siteId, path);
-            if (Objects.nonNull(item)) {
-                if (StringUtils.isEmpty(item.getLockOwner())) {
-                    logger.debug("Item in site '{}' path '{}' is already unlocked", siteId, path);
-                    throw new ContentAlreadyUnlockedException();
-                } else {
-                    contentServiceInternal.itemUnlockByPath(siteId, path);
-                    itemServiceInternal.unlockItemByPath(siteId, path);
-                    logger.debug("Item in site '{}' path '{}' successfully unlocked", siteId, path);
-                    applicationContext.publishEvent(
-                            new LockContentEvent(securityService.getAuthentication(), siteId, path, false));
-                }
-            } else {
+            if (Objects.isNull(item)) {
                 logger.debug("Item not found in site '{}' path '{}'", siteId, path);
-                throw new ContentNotFoundException();
+                throw new ContentNotFoundException(path, siteId, format("Item not found in site '%s' path '%s'", siteId, path));
             }
+            if (StringUtils.isEmpty(item.getLockOwner())) {
+                logger.debug("Item in site '{}' path '{}' is already unlocked", siteId, path);
+                throw new ContentAlreadyUnlockedException();
+            }
+            contentServiceInternal.itemUnlockByPath(siteId, path);
+            itemServiceInternal.unlockItemByPath(siteId, path);
+            logger.debug("Item in site '{}' path '{}' successfully unlocked", siteId, path);
+            applicationContext.publishEvent(
+                    new LockContentEvent(securityService.getAuthentication(), siteId, path, false));
         } finally {
             generalLockService.unlockContentItem(siteId, path);
         }
     }
 
     @Override
-    public Optional<Resource> getContentByCommitId(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId, String path,
+    @HasPermission(type = DefaultPermission.class, action = PERMISSION_CONTENT_READ)
+    public Optional<Resource> getContentByCommitId(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
+                                                   @ProtectedResourceId(PATH_RESOURCE_ID) String path,
                                                    String commitId) throws ContentNotFoundException {
         return contentServiceInternal.getContentByCommitId(siteId, path, commitId);
     }
@@ -297,9 +324,9 @@ public class ContentServiceImpl implements ContentService, ApplicationContextAwa
     }
 
     @Override
-    @ValidateParams
-    public Resource getContentAsResource(@ValidateStringParam(name = "site") String site,
-                                         @ValidateSecurePathParam(name = "path") String path)
+    @Valid
+    public Resource getContentAsResource(@ValidateStringParam String site,
+                                         @ValidateSecurePathParam String path)
         throws ContentNotFoundException {
         return contentServiceV1.getContentAsResource(site, path);
     }

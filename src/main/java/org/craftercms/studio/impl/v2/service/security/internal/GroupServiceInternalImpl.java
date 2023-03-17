@@ -35,6 +35,8 @@ import org.craftercms.studio.api.v2.service.config.ConfigurationService;
 import org.craftercms.studio.api.v2.service.security.internal.GroupServiceInternal;
 import org.craftercms.studio.api.v2.service.security.internal.UserServiceInternal;
 
+import static java.lang.String.format;
+
 public class GroupServiceInternalImpl implements GroupServiceInternal {
 
     private GroupDAO groupDao;
@@ -120,13 +122,13 @@ public class GroupServiceInternalImpl implements GroupServiceInternal {
     }
 
     @Override
-    public Group createGroup(long orgId, String groupName, String groupDescription)
+    public Group createGroup(long orgId, String groupName, String groupDescription, boolean externallyManaged)
             throws GroupAlreadyExistsException, ServiceLayerException {
         if (groupExists(-1, groupName)) {
             throw new GroupAlreadyExistsException("Group '" + groupName + "' already exists");
         }
         try {
-            retryingDatabaseOperationFacade.retry(() -> groupDao.createGroup(orgId, groupName, groupDescription));
+            retryingDatabaseOperationFacade.retry(() -> groupDao.createGroup(orgId, groupName, groupDescription, externallyManaged ? 1 : 0));
             return groupDao.getGroupByName(groupName);
         } catch (Exception e) {
             throw new ServiceLayerException("Unknown database error", e);
@@ -134,13 +136,14 @@ public class GroupServiceInternalImpl implements GroupServiceInternal {
     }
 
     @Override
-    public Group updateGroup(long orgId, Group group) throws GroupNotFoundException, ServiceLayerException {
-        if (!groupExists(group.getId(), StringUtils.EMPTY)) {
-            throw new GroupNotFoundException("No group found for id '" + group.getId() + "'");
+    public Group updateGroup(long orgId, Group updatedGroup) throws GroupNotFoundException, ServiceLayerException {
+        Group group = groupDao.getGroup(updatedGroup.getId());
+        if (group == null) {
+            throw new GroupNotFoundException(format("No group found for id '%d'", updatedGroup.getId()));
         }
+        group.setGroupDescription(updatedGroup.getGroupDescription());
         try {
             retryingDatabaseOperationFacade.retry(() -> groupDao.updateGroup(group));
-
             return group;
         } catch (Exception e) {
             throw new ServiceLayerException("Unknown database error", e);
@@ -230,8 +233,7 @@ public class GroupServiceInternalImpl implements GroupServiceInternal {
             throw new ServiceLayerException("Unable to get role mappings config for site '" + siteId + "'", e);
         }
 
-        List<String> groups = new ArrayList<>();
-        groups.addAll(groupRoleMapping.keySet());
+        List<String> groups = new ArrayList<>(groupRoleMapping.keySet());
 
         return groups;
     }

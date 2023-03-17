@@ -50,6 +50,14 @@ public interface ContentService {
     boolean contentExists(String site, String path);
 
     /**
+     * Checks if a content exists at a given path and throw an exception if it does not.
+     * @param site id of the site
+     * @param path the content path
+     * @throws ServiceLayerException if no content is found at the given path
+     */
+    void checkContentExists(String site, String path) throws ServiceLayerException;
+
+    /**
      * This is a faster, but less accurate, version of contentExists. This prioritizes
      * performance over checking the actual underlying repository if the content is actually in the store
      * or we simply hold a reference to the object in the actual store.
@@ -84,6 +92,14 @@ public interface ContentService {
      * @return document
      */
     String getContentAsString(String site, String path);
+
+
+    /**
+     * Check if path is a correct location to write asset content
+     * @param path to write asset
+     * @throws ServiceLayerException if path is not permitted
+     */
+    void checkWriteAssetPath(String path) throws ServiceLayerException;
 
     /**
      * get content as string from repository
@@ -126,6 +142,13 @@ public interface ContentService {
      * @throws ServiceLayerException general service error
      */
     boolean writeContent(String site, String path, InputStream content) throws ServiceLayerException;
+
+    /**
+     * Notify when there is a content update
+     * @param site site name
+     * @param path path name
+     */
+    void notifyContentEvent(String site, String path);
 
     /**
      * create a folder

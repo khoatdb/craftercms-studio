@@ -25,28 +25,13 @@ import org.craftercms.commons.crypto.CryptoException;
 import org.craftercms.commons.crypto.TextEncryptor;
 import org.craftercms.studio.api.v1.constant.GitRepositories;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
-import org.craftercms.studio.api.v1.exception.repository.InvalidRemoteRepositoryCredentialsException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
-import org.craftercms.studio.api.v1.exception.repository.InvalidRemoteUrlException;
-import org.craftercms.studio.api.v1.exception.repository.RemoteAlreadyExistsException;
-import org.craftercms.studio.api.v1.exception.repository.RemoteNotRemovableException;
-import org.craftercms.studio.api.v1.exception.repository.RemoteRepositoryNotFoundException;
+import org.craftercms.studio.api.v1.exception.repository.*;
 import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.craftercms.studio.api.v1.service.GeneralLockService;
 import org.craftercms.studio.api.v1.service.security.SecurityService;
 import org.craftercms.studio.api.v1.service.site.SiteService;
-import org.craftercms.studio.api.v2.dal.ClusterDAO;
-import org.craftercms.studio.api.v2.dal.ClusterMember;
-import org.craftercms.studio.api.v2.dal.DiffConflictedFile;
-import org.craftercms.studio.api.v2.dal.GitLog;
-import org.craftercms.studio.api.v2.dal.RemoteRepository;
-import org.craftercms.studio.api.v2.dal.RemoteRepositoryDAO;
-import org.craftercms.studio.api.v2.dal.RemoteRepositoryInfo;
-import org.craftercms.studio.api.v2.dal.RepositoryStatus;
-import org.craftercms.studio.api.v2.dal.RetryingDatabaseOperationFacade;
-import org.craftercms.studio.api.v2.dal.User;
+import org.craftercms.studio.api.v2.dal.*;
 import org.craftercms.studio.api.v2.repository.ContentRepository;
 import org.craftercms.studio.api.v2.repository.RetryingRepositoryOperationFacade;
 import org.craftercms.studio.api.v2.service.notification.NotificationService;
@@ -56,48 +41,23 @@ import org.craftercms.studio.api.v2.service.security.internal.UserServiceInterna
 import org.craftercms.studio.api.v2.utils.GitRepositoryHelper;
 import org.craftercms.studio.api.v2.utils.StudioConfiguration;
 import org.craftercms.studio.impl.v2.utils.GitUtils;
-import org.eclipse.jgit.api.AddCommand;
-import org.eclipse.jgit.api.CheckoutCommand;
-import org.eclipse.jgit.api.CommitCommand;
-import org.eclipse.jgit.api.DeleteBranchCommand;
-import org.eclipse.jgit.api.DiffCommand;
-import org.eclipse.jgit.api.FetchCommand;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.ListBranchCommand;
-import org.eclipse.jgit.api.MergeCommand;
-import org.eclipse.jgit.api.PullCommand;
-import org.eclipse.jgit.api.PullResult;
-import org.eclipse.jgit.api.PushCommand;
-import org.eclipse.jgit.api.RemoteAddCommand;
-import org.eclipse.jgit.api.RemoteListCommand;
-import org.eclipse.jgit.api.RemoteRemoveCommand;
-import org.eclipse.jgit.api.ResetCommand;
-import org.eclipse.jgit.api.Status;
-import org.eclipse.jgit.api.StatusCommand;
+import org.eclipse.jgit.api.*;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.TransportException;
-import org.eclipse.jgit.errors.NoRemoteRepositoryException;
 import org.eclipse.jgit.errors.CorruptObjectException;
-import org.eclipse.jgit.lib.Config;
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectReader;
-import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.RepositoryState;
+import org.eclipse.jgit.errors.NoRemoteRepositoryException;
+import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.merge.MergeStrategy;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
-import org.eclipse.jgit.transport.PushResult;
-import org.eclipse.jgit.transport.RefSpec;
-import org.eclipse.jgit.transport.RemoteConfig;
-import org.eclipse.jgit.transport.RemoteRefUpdate;
-import org.eclipse.jgit.transport.URIish;
+import org.eclipse.jgit.transport.*;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.task.TaskExecutor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
@@ -107,29 +67,16 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Queue;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.commons.collections4.CollectionUtils.isNotEmpty;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 import static org.craftercms.studio.api.v1.constant.GitRepositories.SANDBOX;
 import static org.craftercms.studio.api.v1.constant.StudioConstants.PATTERN_SITE;
 import static org.craftercms.studio.api.v1.constant.StudioConstants.SITE_SANDBOX_REPOSITORY_GIT_LOCK;
-import static org.craftercms.studio.api.v2.utils.StudioConfiguration.REPO_COMMIT_MESSAGE_POSTSCRIPT;
-import static org.craftercms.studio.api.v2.utils.StudioConfiguration.REPO_COMMIT_MESSAGE_PROLOGUE;
-import static org.craftercms.studio.api.v2.utils.StudioConfiguration.REPO_PULL_FROM_REMOTE_CONFLICT_NOTIFICATION_ENABLED;
-import static org.craftercms.studio.api.v2.utils.StudioConfiguration.REPO_SANDBOX_BRANCH;
-import static org.craftercms.studio.impl.v1.repository.git.GitContentRepositoryConstants.CLUSTER_NODE_REMOTE_NAME_PREFIX;
+import static org.craftercms.studio.api.v2.utils.StudioConfiguration.*;
 import static org.craftercms.studio.impl.v1.repository.git.GitContentRepositoryConstants.LOCK_FILE;
 
 public class RepositoryManagementServiceInternalImpl implements RepositoryManagementServiceInternal {
@@ -146,7 +93,6 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
     private UserServiceInternal userServiceInternal;
     private org.craftercms.studio.api.v1.repository.ContentRepository contentRepository;
     private TextEncryptor encryptor;
-    private ClusterDAO clusterDao;
     private GeneralLockService generalLockService;
     private SiteService siteService;
     private GitRepositoryHelper gitRepositoryHelper;
@@ -154,6 +100,7 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
     private int batchSizeGitLog = 1000;
     private RetryingRepositoryOperationFacade retryingRepositoryOperationFacade;
     private RetryingDatabaseOperationFacade retryingDatabaseOperationFacade;
+    protected TaskExecutor taskExecutor;
 
     @Override
     public boolean addRemote(String siteId, RemoteRepository remoteRepository)
@@ -254,21 +201,21 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
         params.put("authenticationType", remoteRepository.getAuthenticationType());
         params.put("remoteUsername", remoteRepository.getRemoteUsername());
 
-        if (StringUtils.isNotEmpty(remoteRepository.getRemotePassword())) {
+        if (isNotEmpty(remoteRepository.getRemotePassword())) {
             logger.trace("Encrypt the password before inserting into the database for site '{}'", siteId);
             String hashedPassword = encryptor.encrypt(remoteRepository.getRemotePassword());
             params.put("remotePassword", hashedPassword);
         } else {
             params.put("remotePassword", remoteRepository.getRemotePassword());
         }
-        if (StringUtils.isNotEmpty(remoteRepository.getRemoteToken())) {
+        if (isNotEmpty(remoteRepository.getRemoteToken())) {
             logger.trace("Encrypt the token before inserting into the database for site '{}'", siteId);
             String hashedToken = encryptor.encrypt(remoteRepository.getRemoteToken());
             params.put("remoteToken", hashedToken);
         } else {
             params.put("remoteToken", remoteRepository.getRemoteToken());
         }
-        if (StringUtils.isNotEmpty(remoteRepository.getRemotePrivateKey())) {
+        if (isNotEmpty(remoteRepository.getRemotePrivateKey())) {
             logger.trace("Encrypt the private key before inserting into the database for site '{}'", siteId);
             String hashedPrivateKey = encryptor.encrypt(remoteRepository.getRemotePrivateKey());
             params.put("remotePrivateKey", hashedPrivateKey);
@@ -422,6 +369,9 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
                 remoteName, siteId);
         String gitLockKey = SITE_SANDBOX_REPOSITORY_GIT_LOCK.replaceAll(PATTERN_SITE, siteId);
         RemoteRepository remoteRepository = getRemoteRepository(siteId, remoteName);
+        if (remoteRepository == null) {
+            throw new RemoteRepositoryNotFoundException(format("Remote repository '%s' does not exist in site '%s'", remoteName, siteId));
+        }
         logger.trace("Prepare the JGit pull command in site '{}'", siteId);
         Repository repo = gitRepositoryHelper.getRepository(siteId, SANDBOX);
         generalLockService.lock(gitLockKey);
@@ -449,16 +399,15 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
             pullCommand.setFastForward(MergeCommand.FastForwardMode.NO_FF);
             PullResult pullResult = retryingRepositoryOperationFacade.call(pullCommand);
             String pullResultMessage = pullResult.toString();
-            if (StringUtils.isNotEmpty(pullResultMessage)) {
+            if (isNotEmpty(pullResultMessage)) {
                 logger.info("Git pull in site '{}' returned '{}'", siteId, pullResultMessage);
             }
             if (pullResult.isSuccessful()) {
-                String lastCommitId = contentRepository.getRepoLastCommitId(siteId);
-                contentRepositoryV2.upsertGitLogList(siteId, List.of(lastCommitId), false, false);
-
                 List<String> newMergedCommits = extractCommitIdsFromPullResult(siteId, repo, pullResult);
-                List<String> commitIds = new LinkedList<>();
                 if (isNotEmpty(newMergedCommits)) {
+                    String lastCommitId = contentRepository.getRepoLastCommitId(siteId);
+                    contentRepositoryV2.upsertGitLogList(siteId, List.of(lastCommitId), false, false);
+                    List<String> commitIds = new LinkedList<>();
                     logger.debug("Actual commits pulled for site '{}':", siteId);
                     int cnt = 0;
                     for (String commitId : newMergedCommits) {
@@ -475,8 +424,16 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
                     if (isNotEmpty(commitIds)) {
                         contentRepositoryV2.upsertGitLogList(siteId, commitIds, true, true);
                     }
+                    siteService.updateLastCommitId(siteId, lastCommitId);
+                    taskExecutor.execute(() -> {
+                        try {
+                            String lastProcessedCommit = siteService.getLastVerifiedGitlogCommitId(siteId);
+                            siteService.syncDatabaseWithRepo(siteId, lastProcessedCommit);
+                        } catch (ServiceLayerException e) {
+                            logger.error("Failed to sync database with repo for site '{}'", siteId, e);
+                        }
+                    });
                 }
-                siteService.updateLastCommitId(siteId, lastCommitId);
                 return MergeResult.from(pullResult, newMergedCommits);
             } else if (conflictNotificationEnabled()) {
                 List<String> conflictFiles = new LinkedList<>();
@@ -584,7 +541,7 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
             boolean toRet = true;
             for (PushResult pushResult : pushResultIterable) {
                 String pushResultMessage = pushResult.getMessages();
-                if (StringUtils.isNotEmpty(pushResultMessage)) {
+                if (isNotEmpty(pushResultMessage)) {
                     logger.info("Git push in site '{}' returned '{}'", siteId, pushResultMessage);
                 }
                 Collection<RemoteRefUpdate> updates = pushResult.getRemoteUpdates();
@@ -684,19 +641,7 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
     }
 
     private boolean isRemovableRemote(String siteId, String remoteName) {
-        boolean toRet = true;
-        if (StringUtils.startsWith(remoteName, CLUSTER_NODE_REMOTE_NAME_PREFIX)) {
-            RemoteRepository remoteRepository = getRemoteRepository(siteId, remoteName);
-            List<ClusterMember> clusterMembers = getClusterMembersByRemoteName(remoteName);
-            toRet = !(Objects.isNull(remoteRepository) && isNotEmpty(clusterMembers));
-        }
-        return toRet;
-    }
-
-    private List<ClusterMember> getClusterMembersByRemoteName(String remoteName) {
-        Map<String, String> params = new HashMap<>();
-        params.put("remoteName", remoteName);
-        return clusterDao.getMemberByRemoteName(params);
+        return true;
     }
 
     @Override
@@ -793,6 +738,10 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
         Repository repo = gitRepositoryHelper.getRepository(siteId, SANDBOX);
         try (Git git = new Git(repo)) {
             List<ObjectId> mergeHeads = repo.readMergeHeads();
+            if (mergeHeads == null) {
+                // No merge head
+                return diffResult;
+            }
             ObjectId mergeCommitId = mergeHeads.get(0);
             logger.debug("Get the local content of the conflicting file from site '{}' path '{}'", siteId, path);
             InputStream studioVersionIs = contentRepositoryV2.getContentByCommitId(siteId, path, Constants.HEAD)
@@ -859,11 +808,11 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
             String postscript = studioConfiguration.getProperty(REPO_COMMIT_MESSAGE_POSTSCRIPT);
 
             StringBuilder sbMessage = new StringBuilder();
-            if (StringUtils.isNotEmpty(prologue)) {
+            if (isNotEmpty(prologue)) {
                 sbMessage.append(prologue).append("\n\n");
             }
             sbMessage.append(commitMessage);
-            if (StringUtils.isNotEmpty(postscript)) {
+            if (isNotEmpty(postscript)) {
                 sbMessage.append("\n\n").append(postscript);
             }
             commitCommand.setCommitter(personIdent).setAuthor(personIdent).setMessage(sbMessage.toString());
@@ -977,11 +926,6 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
         this.encryptor = encryptor;
     }
 
-
-    public void setClusterDao(ClusterDAO clusterDao) {
-        this.clusterDao = clusterDao;
-    }
-
     public void setGeneralLockService(GeneralLockService generalLockService) {
         this.generalLockService = generalLockService;
     }
@@ -1008,5 +952,9 @@ public class RepositoryManagementServiceInternalImpl implements RepositoryManage
 
     public void setRetryingDatabaseOperationFacade(RetryingDatabaseOperationFacade retryingDatabaseOperationFacade) {
         this.retryingDatabaseOperationFacade = retryingDatabaseOperationFacade;
+    }
+
+    public void setTaskExecutor(TaskExecutor taskExecutor) {
+        this.taskExecutor = taskExecutor;
     }
 }

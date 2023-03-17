@@ -34,6 +34,9 @@ public class ApiResponse {
     public static final ApiResponse DELETED =
             new ApiResponse(2, "Deleted", StringUtils.EMPTY, StringUtils.EMPTY);
 
+    public static final ApiResponse COMPLETED_WITH_ERRORS =
+            new ApiResponse(3, "Completed with errors", StringUtils.EMPTY, StringUtils.EMPTY);
+
     // 1000 - 2000
     public static final ApiResponse INTERNAL_SYSTEM_FAILURE =
             new ApiResponse(1000, "Internal system failure", "Contact support", StringUtils.EMPTY);
@@ -59,6 +62,8 @@ public class ApiResponse {
             "Check if you sent in the right Group Id", StringUtils.EMPTY);
     public static final ApiResponse GROUP_ALREADY_EXISTS = new ApiResponse(4001, "Group already exists",
             "Try a different group name", StringUtils.EMPTY);
+    public static final ApiResponse GROUP_EXTERNALLY_MANAGED = new ApiResponse(4002, "Group is externally managed",
+            "Update the group in the main identity system (e.g. LDAP)", StringUtils.EMPTY);
 
     // 5000 - 6000
     public static final ApiResponse SITE_NOT_FOUND = new ApiResponse(5000, "Site not found",
@@ -89,6 +94,11 @@ public class ApiResponse {
             "The user that locked the item or the administrator must unlock the item first", StringUtils.EMPTY);
     public static final ApiResponse CONTENT_ALREADY_UNLOCKED = new ApiResponse(7003, "Content already unlocked",
             "The item is already unlocked", StringUtils.EMPTY);
+    public static final ApiResponse CONTENT_MOVE_INVALID_LOCATION = new ApiResponse(7004,
+            "Paste destination folder is invalid (did you paste the item onto itself?)",
+            "Try pasting the content to a different folder", StringUtils.EMPTY);
+    public static final ApiResponse BLOB_NOT_FOUND = new ApiResponse(7005, "Content not found in blob store",
+            "Check your blob store configurations", StringUtils.EMPTY);
 
     // 8000 - 9000
     public static final ApiResponse PUBLISHING_DISABLED = new ApiResponse(8000, "Publishing is disabled",
@@ -153,15 +163,6 @@ public class ApiResponse {
                     "Check the plugin requirements", StringUtils.EMPTY);
 
     // 50000 - 51000
-    public static final ApiResponse CMIS_UNREACHABLE = new ApiResponse(50000, "CMIS server is unreachable",
-            "Advise the user that the CMIS server is not reachable", StringUtils.EMPTY);
-    public static final ApiResponse CMIS_TIMEOUT = new ApiResponse(50001, "Request to CMIS server timed out",
-            "Advise the user that the request to CMIS server timed out", StringUtils.EMPTY);
-    public static final ApiResponse CMIS_NOT_FOUND = new ApiResponse(50002, "CMIS server was not found",
-            "Advise the user that the CMIS server was not found", StringUtils.EMPTY);
-    public static final ApiResponse CMIS_STUDIO_PATH_NOT_FOUND =
-            new ApiResponse(50003, "Target path does not exist in site repository",
-                    "Check if you sent in the right Studio Path", StringUtils.EMPTY);
 
     // 51000 - 52000
     public static final ApiResponse BOX_UNREACHABLE = new ApiResponse(51000, "Box is unreachable",
@@ -175,6 +176,8 @@ public class ApiResponse {
     public static final ApiResponse LOGGER_NOT_FOUND = new ApiResponse(53000, "The logger was not found",
             "Check if you sent in the right logger name or " +
                     "add 'createIfAbsent=true' parameter to create the logger if it does not exist", StringUtils.EMPTY);
+    public static final ApiResponse CONFIGURATION_PROFILE_NOT_FOUND = new ApiResponse(54000, "The profile was not found",
+        "Check if you sent in the right profileId name", StringUtils.EMPTY);
 
     private int code;
     private String message;

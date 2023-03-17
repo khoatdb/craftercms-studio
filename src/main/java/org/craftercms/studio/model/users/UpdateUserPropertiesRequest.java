@@ -16,8 +16,11 @@
 package org.craftercms.studio.model.users;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
 
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
 import java.util.Map;
 
 /**
@@ -32,13 +35,14 @@ public class UpdateUserPropertiesRequest {
     /**
      * The id of the site
      */
+    @ValidSiteId
     protected String siteId;
 
     /**
      * The properties to update or add
      */
     @NotEmpty
-    protected Map<String, String> properties;
+    protected Map<@NotBlank String, @NotNull String> properties;
 
     public String getSiteId() {
         return siteId;

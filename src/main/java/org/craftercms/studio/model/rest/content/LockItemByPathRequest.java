@@ -16,13 +16,18 @@
 
 package org.craftercms.studio.model.rest.content;
 
+import org.craftercms.commons.validation.annotations.param.ValidExistingContentPath;
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+
 import javax.validation.constraints.NotEmpty;
 
 public class LockItemByPathRequest {
 
     @NotEmpty
+    @ValidSiteId
     private String siteId;
     @NotEmpty
+    @ValidExistingContentPath
     private String path;
 
     public String getSiteId() {

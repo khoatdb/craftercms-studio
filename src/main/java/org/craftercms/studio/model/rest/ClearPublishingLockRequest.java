@@ -16,8 +16,11 @@
 
 package org.craftercms.studio.model.rest;
 
+import org.craftercms.commons.validation.annotations.param.ValidSiteId;
+
 public class ClearPublishingLockRequest {
 
+    @ValidSiteId
     private String siteId;
 
     public String getSiteId() {

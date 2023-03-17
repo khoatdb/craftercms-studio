@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -18,12 +18,9 @@ package org.craftercms.studio.impl.v1.service.configuration;
 
 import com.google.common.cache.Cache;
 import org.apache.commons.lang3.StringUtils;
-import org.craftercms.commons.validation.annotations.param.ValidateParams;
 import org.craftercms.commons.validation.annotations.param.ValidateStringParam;
 import org.craftercms.studio.api.v1.constant.StudioConstants;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.craftercms.studio.api.v1.service.GeneralLockService;
 import org.craftercms.studio.api.v1.service.configuration.ContentTypesConfig;
 import org.craftercms.studio.api.v1.service.content.ContentService;
@@ -37,7 +34,10 @@ import org.craftercms.studio.impl.v2.utils.DateUtils;
 import org.dom4j.Document;
 import org.dom4j.Element;
 import org.dom4j.Node;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.validation.Valid;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -67,9 +67,9 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
     protected Cache<String, ContentTypeConfigTO> cache;
 
     @Override
-    @ValidateParams
-    public ContentTypeConfigTO getContentTypeConfig(@ValidateStringParam(name = "site") final String site,
-                                                    @ValidateStringParam(name="contentType") final String contentType) {
+    @Valid
+    public ContentTypeConfigTO getContentTypeConfig(@ValidateStringParam final String site,
+                                                    @ValidateStringParam final String contentType) {
         if (StringUtils.isNotEmpty(contentType) && !StringUtils.equals(contentType, CONTENT_TYPE_UNKNOWN)) {
             return loadConfiguration(site, contentType);
         } else {
@@ -78,9 +78,9 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
     }
 
     @Override
-    @ValidateParams
-    public ContentTypeConfigTO loadConfiguration(@ValidateStringParam(name = "site") String site,
-                                                 @ValidateStringParam(name = "contentType") String contentType) {
+    @Valid
+    public ContentTypeConfigTO loadConfiguration(@ValidateStringParam String site,
+                                                 @ValidateStringParam String contentType) {
         String siteConfigPath = getConfigPath().replaceAll(StudioConstants.PATTERN_SITE, site)
                 .replaceAll(StudioConstants.PATTERN_CONTENT_TYPE, contentType);
         String configFileFullPath = siteConfigPath + FILE_SEPARATOR + getConfigFileName();
@@ -157,7 +157,7 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
                     String removeEmptyFolder = removeFolderNode.getText();
                     boolean isRemoveEmptyFolder=false;
                     if(removeEmptyFolder!=null){
-                        isRemoveEmptyFolder = Boolean.valueOf(removeEmptyFolder);
+                        isRemoveEmptyFolder = Boolean.parseBoolean(removeEmptyFolder);
                     }
                     if(StringUtils.isNotEmpty(pattern)){
                         DeleteDependencyConfigTO deleteConfigTO =
@@ -200,7 +200,7 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
         List<String> paths = null;
         List<Node> nodes = root.selectNodes(path);
         if (nodes != null && nodes.size() > 0) {
-            paths = new ArrayList<String>(nodes.size());
+            paths = new ArrayList<>(nodes.size());
             for (Node node : nodes) {
                 String role = node.getText();
                 if (!StringUtils.isEmpty(role)) {
@@ -208,7 +208,7 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
                 }
             }
         } else {
-            paths = new ArrayList<String>();
+            paths = new ArrayList<>();
         }
         return paths;
     }
@@ -221,7 +221,7 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
     protected void loadRoles(ContentTypeConfigTO config, List<Node> nodes) {
         Set<String> roles = null;
         if (nodes != null && nodes.size() > 0) {
-            roles = new HashSet<String>(nodes.size());
+            roles = new HashSet<>(nodes.size());
             for (Node node : nodes) {
                 String role = node.getText();
                 if (!StringUtils.isEmpty(role)) {
@@ -229,7 +229,7 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
                 }
             }
         } else {
-            roles = new HashSet<String>();
+            roles = new HashSet<>();
         }
         config.setAllowedRoles(roles);
     }
@@ -240,7 +240,7 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
      * @param copyDependencyNodes
      */
     protected void loadCopyDependencyPatterns(ContentTypeConfigTO config, List<Node> copyDependencyNodes) {
-        List<CopyDependencyConfigTO> copyConfig = new ArrayList<CopyDependencyConfigTO>();
+        List<CopyDependencyConfigTO> copyConfig = new ArrayList<>();
         if (copyDependencyNodes != null) {
             for (Node copyDependency : copyDependencyNodes) {
                 Node patternNode = copyDependency.selectSingleNode("pattern");
@@ -261,9 +261,9 @@ public class ContentTypesConfigImpl implements ContentTypesConfig {
 
 
     @Override
-    @ValidateParams
-    public ContentTypeConfigTO reloadConfiguration(@ValidateStringParam(name = "site") String site,
-                                                   @ValidateStringParam(name = "contentType") String contentType) {
+    @Valid
+    public ContentTypeConfigTO reloadConfiguration(@ValidateStringParam String site,
+                                                   @ValidateStringParam String contentType) {
         return loadConfiguration(site, contentType);
     }
 

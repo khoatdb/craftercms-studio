@@ -18,8 +18,6 @@ package org.craftercms.studio.impl.v2.repository;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.iterators.ReverseListIterator;
-import org.apache.commons.configuration2.HierarchicalConfiguration;
-import org.apache.commons.configuration2.tree.ImmutableNode;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.NotFileFilter;
 import org.apache.commons.io.filefilter.PrefixFileFilter;
@@ -34,6 +32,7 @@ import org.craftercms.studio.api.v1.constant.GitRepositories;
 import org.craftercms.studio.api.v1.dal.PublishRequest;
 import org.craftercms.studio.api.v1.dal.SiteFeed;
 import org.craftercms.studio.api.v1.dal.SiteFeedMapper;
+import org.craftercms.studio.api.v1.exception.ContentNotFoundException;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v1.exception.repository.InvalidRemoteRepositoryCredentialsException;
@@ -124,7 +123,6 @@ public class GitContentRepository implements ContentRepository {
     private TextEncryptor encryptor;
     private ContextManager contextManager;
     private ContentStoreService contentStoreService;
-    private ClusterDAO clusterDao;
     private GeneralLockService generalLockService;
     private SiteService siteService;
     private PublishRequestDAO publishRequestDao;
@@ -1303,27 +1301,13 @@ public class GitContentRepository implements ContentRepository {
         }
 
         // Insert site remote record into database
-        Map insertRepoParams = params;
-        retryingDatabaseOperationFacade.retry(() -> remoteRepositoryDAO.insertRemoteRepository(insertRepoParams));
-
-        params = new HashMap<>();
-        params.put("siteId", siteId);
-        params.put("remoteName", remoteName);
-        RemoteRepository remoteRepository = remoteRepositoryDAO.getRemoteRepository(params);
-        if (remoteRepository != null) {
-            insertClusterRemoteRepository(remoteRepository);
-        }
+        retryingDatabaseOperationFacade.retry(() -> remoteRepositoryDAO.insertRemoteRepository(params));
     }
 
-    public void insertClusterRemoteRepository(RemoteRepository remoteRepository) {
-        HierarchicalConfiguration<ImmutableNode> registrationData =
-                studioConfiguration.getSubConfig(CLUSTERING_NODE_REGISTRATION);
-        if (registrationData != null && !registrationData.isEmpty()) {
-            String localAddress = registrationData.getString(CLUSTER_MEMBER_LOCAL_ADDRESS);
-            ClusterMember member = clusterDao.getMemberByLocalAddress(localAddress);
-            if (member != null) {
-                retryingDatabaseOperationFacade.retry(() -> clusterDao.addClusterRemoteRepository(member.getId(), remoteRepository.getId()));
-            }
+    @Override
+    public void checkContentExists(String site, String path) throws ServiceLayerException {
+        if (!contentExists(site, path)) {
+            throw new ContentNotFoundException(path, site, format("Content does not exist at '%s' for site '%s'", path, site));
         }
     }
 
@@ -1895,14 +1879,17 @@ public class GitContentRepository implements ContentRepository {
             retryingRepositoryOperationFacade.call(git.pull()
                     .setRemote(DEFAULT_REMOTE_NAME)
                     .setStrategy(THEIRS));
-            // check if the target branch exists
-            if (!branchExists(repo, publishingTarget)) {
+            // check if the target branch exists,
+            boolean branchExist = branchExists(repo, publishingTarget);
+            boolean stagingTarget = publishingTarget.equals(servicesConfig.getStagingEnvironment(siteId));
+            if (!branchExist && !stagingTarget) {
                 logger.error("Publishing target '{}' not found in site '{}'", publishingTarget, siteId);
                 throw new PublishedRepositoryNotFoundException(format("Publishing target '%s' not " +
                         "found in site '%s'", publishingTarget, siteId));
             }
             // checkout target branch
-            checkoutBranch(git, publishingTarget);
+            boolean createBranch = !branchExist && stagingTarget;
+            checkoutBranch(git, publishingTarget, createBranch);
 
             // checkout temp branch
             checkoutBranch(git, inProgressBranchName, true);
@@ -1971,6 +1958,17 @@ public class GitContentRepository implements ContentRepository {
             Repository repo = helper.getRepository(siteId, GitRepositories.PUBLISHED);
             try (Git git = Git.wrap(repo)) {
                 try {
+                    if (!changes.getFailedPaths().isEmpty()) {
+                        // Some items failed publish, let's not commit those changes
+                        ResetCommand resetCommand = git.reset();
+                        changes.getFailedPaths().forEach(resetCommand::addPath);
+                        retryingRepositoryOperationFacade.call(resetCommand);
+
+                        // Clean repo is needed for new files failures
+                        retryingRepositoryOperationFacade.call(git.clean().setCleanDirectories(true).setForce(true));
+                        // Checkout for updates
+                        retryingRepositoryOperationFacade.call(git.checkout().addPaths(List.copyOf(changes.getFailedPaths())));
+                    }
                     // commit all files
                     String commitMessage = StringUtils.isNotEmpty(comment) ? comment : helper.getCommitMessage(REPO_PUBLISH_ALL_COMMIT_MESSAGE);
                     retryingRepositoryOperationFacade.call(git.commit()
@@ -2082,10 +2080,6 @@ public class GitContentRepository implements ContentRepository {
 
     public void setContentStoreService(ContentStoreService contentStoreService) {
         this.contentStoreService = contentStoreService;
-    }
-
-    public void setClusterDao(ClusterDAO clusterDao) {
-        this.clusterDao = clusterDao;
     }
 
     public void setGeneralLockService(GeneralLockService generalLockService) {

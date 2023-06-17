@@ -36,7 +36,7 @@
     <parent>
         <groupId>org.craftercms</groupId>
         <artifactId>craftercms</artifactId>
-        <version>4.0.5</version><!-- craftercms version flag -->
+        <version>4.1.0</version><!-- craftercms version flag -->
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
@@ -231,12 +231,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-text</artifactId>
-            <version>${commons.text.version}</version>
-        </dependency>
-
-        <dependency>
             <groupId>net.sf.json-lib</groupId>
             <artifactId>json-lib</artifactId>
             <version>${json.lib.version}</version>
@@ -323,12 +317,6 @@
             <artifactId>snakeyaml</artifactId>
             <version>${snakeyaml.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.jayway.restassured</groupId>
-            <artifactId>rest-assured</artifactId>
-            <version>${rest.assured.version}</version>
-            <scope>test</scope>
-        </dependency>
 
         <dependency>
             <groupId>org.springframework</groupId>
@@ -340,7 +328,7 @@
         <dependency>
             <groupId>org.xmlunit</groupId>
             <artifactId>xmlunit-core</artifactId>
-            <version>${org.xmlunit.version}</version>
+            <version>${xmlunit.core.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -368,13 +356,31 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>jcl-over-slf4j</artifactId>
-            <version>${jcl.over.slf4j.version}</version>
+            <version>${slf4j.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>${slf4j.api.version}</version>
+            <version>${slf4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j2-impl</artifactId>
+            <version>${log4j.version}</version>
         </dependency>
 
         <!-- LDAP -->
@@ -457,7 +463,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.databind.version}</version>
+            <version>${jackson.version}</version>
         </dependency>
 
         <!-- AWS SDK -->
@@ -703,7 +709,7 @@
             </activation>
             <properties>
                 <studio.ui.path>target/ui/</studio.ui.path>
-                <studio.ui.version>master</studio.ui.version><!-- craftercms ui version flag -->
+                <studio.ui.version>v4.1.0</studio.ui.version><!-- craftercms ui version flag -->
             </properties>
             <build>
                 <plugins>

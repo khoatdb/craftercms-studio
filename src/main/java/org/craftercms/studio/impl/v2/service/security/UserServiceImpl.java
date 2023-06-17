@@ -26,7 +26,6 @@ import org.craftercms.commons.entitlements.exception.EntitlementException;
 import org.craftercms.commons.entitlements.model.EntitlementType;
 import org.craftercms.commons.entitlements.validator.EntitlementValidator;
 import org.craftercms.commons.http.RequestContext;
-import org.craftercms.commons.security.exception.PermissionException;
 import org.craftercms.commons.security.permissions.DefaultPermission;
 import org.craftercms.commons.security.permissions.annotations.HasPermission;
 import org.craftercms.studio.api.v1.dal.SiteFeed;
@@ -40,6 +39,7 @@ import org.craftercms.studio.api.v2.dal.AuditLog;
 import org.craftercms.studio.api.v2.dal.AuditLogParameter;
 import org.craftercms.studio.api.v2.dal.Group;
 import org.craftercms.studio.api.v2.dal.User;
+import org.craftercms.studio.api.v2.exception.security.ActionsDeniedException;
 import org.craftercms.studio.api.v2.service.audit.internal.AuditServiceInternal;
 import org.craftercms.studio.api.v2.service.config.ConfigurationService;
 import org.craftercms.studio.api.v2.service.security.UserService;
@@ -298,7 +298,7 @@ public class UserServiceImpl implements UserService {
         List<Site> sites = new ArrayList<>();
         Set<String> allSites = siteService.getAllAvailableSites();
         List<Group> userGroups = userServiceInternal.getUserGroups(userId, username);
-        boolean isSysAdmin = userGroups.stream().anyMatch(group -> group.getGroupName().equals(SYSTEM_ADMIN_GROUP));
+        boolean isSysAdmin = securityService.isSystemAdmin(username);
 
         // Iterate all sites. If the user has any of the site groups, it has access to the site
         for (String siteId : allSites) {
@@ -329,35 +329,34 @@ public class UserServiceImpl implements UserService {
             throws ServiceLayerException, UserNotFoundException {
         List<Group> groups = userServiceInternal.getUserGroups(userId, username);
 
-        if (CollectionUtils.isNotEmpty(groups)) {
-            Map<String, List<String>> roleMappings = configurationService.getRoleMappings(site);
-            Set<String> userRoles = new LinkedHashSet<>();
-
-            if (MapUtils.isNotEmpty(roleMappings)) {
-                for (Group group : groups) {
-                    String groupName = group.getGroupName();
-                    if (groupName.equals(SYSTEM_ADMIN_GROUP)) {
-                        // If sysadmin, return all roles
-                        Collection<List<String>> roleSets = roleMappings.values();
-
-                        for (List<String> roleSet : roleSets) {
-                            userRoles.addAll(roleSet);
-                        }
-
-                        break;
-                    } else {
-                        List<String> roles = roleMappings.get(groupName);
-                        if (CollectionUtils.isNotEmpty(roles)) {
-                            userRoles.addAll(roles);
-                        }
-                    }
-                }
-            }
-
-            return new ArrayList<>(userRoles);
-        } else {
+        if (CollectionUtils.isEmpty(groups)) {
             return Collections.emptyList();
         }
+
+        Map<String, List<String>> roleMappings = configurationService.getRoleMappings(site);
+        Set<String> userRoles = new LinkedHashSet<>();
+
+        if (MapUtils.isEmpty(roleMappings)) {
+            return Collections.emptyList();
+        }
+
+        if (securityService.isSystemAdmin(username)) {
+            // If system_admin, return all roles
+            Collection<List<String>> roleSets = roleMappings.values();
+            for (List<String> roleSet : roleSets) {
+                userRoles.addAll(roleSet);
+            }
+        } else {
+            for (Group group : groups) {
+                String groupName = group.getGroupName();
+                List<String> roles = roleMappings.get(groupName);
+                if (CollectionUtils.isNotEmpty(roles)) {
+                    userRoles.addAll(roles);
+                }
+            }
+        }
+
+        return new ArrayList<>(userRoles);
     }
 
     @Override
@@ -488,7 +487,7 @@ public class UserServiceImpl implements UserService {
             AuthenticationException, UserNotFoundException {
         AuthenticatedUser currentUser = getCurrentUser();
         if (currentUser == null || !StringUtils.equals(username, currentUser.getUsername())) {
-            throw new PermissionException("Cannot change password: current logged in user does not match provided username");
+            throw new ActionsDeniedException("Cannot change password: current logged in user does not match provided username");
         }
         boolean success = userServiceInternal.changePassword(username, current, newPassword);
         if (success) {
@@ -627,7 +626,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<String> getCurrentUserGlobalPermissions() throws ServiceLayerException, UserNotFoundException, ExecutionException {
         String currentUser = securityService.getCurrentUser();
-        List<String> roles = getUserGlobalRoles(-1, currentUser);
+        List<String> roles = securityService.getUserGlobalRoles(-1, currentUser);
         return securityServiceV2.getUserPermission(StringUtils.EMPTY, currentUser, roles);
     }
 
@@ -637,30 +636,6 @@ public class UserServiceImpl implements UserService {
         List<String> userPermissions = getCurrentUserGlobalPermissions();
         permissions.forEach(p -> toRet.put(p, userPermissions.contains(p)));
         return toRet;
-    }
-
-    private List<String> getUserGlobalRoles(long userId, String username)
-            throws ServiceLayerException, UserNotFoundException {
-        List<Group> groups = userServiceInternal.getUserGroups(userId, username);
-
-        if (CollectionUtils.isNotEmpty(groups)) {
-            Map<String, List<String>> roleMappings = configurationService.getGlobalRoleMappings();
-            Set<String> userRoles = new LinkedHashSet<>();
-
-            if (MapUtils.isNotEmpty(roleMappings)) {
-                for (Group group : groups) {
-                    String groupName = group.getGroupName();
-                    List<String> roles = roleMappings.get(groupName);
-                    if (CollectionUtils.isNotEmpty(roles)) {
-                        userRoles.addAll(roles);
-                    }
-                }
-            }
-
-            return new ArrayList<>(userRoles);
-        } else {
-            return Collections.emptyList();
-        }
     }
 
     /**

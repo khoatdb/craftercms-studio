@@ -20,6 +20,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.craftercms.commons.rest.parameters.SortField;
 import org.craftercms.studio.api.v1.constant.DmConstants;
 import org.craftercms.studio.api.v1.dal.SiteFeed;
 import org.craftercms.studio.api.v1.dal.SiteFeedMapper;
@@ -28,34 +29,23 @@ import org.craftercms.studio.api.v1.exception.security.UserNotFoundException;
 import org.craftercms.studio.api.v1.service.GeneralLockService;
 import org.craftercms.studio.api.v1.service.configuration.ServicesConfig;
 import org.craftercms.studio.api.v1.service.content.ContentService;
-import org.craftercms.studio.api.v2.dal.DetailedItem;
-import org.craftercms.studio.api.v2.dal.Item;
-import org.craftercms.studio.api.v2.dal.ItemDAO;
-import org.craftercms.studio.api.v2.dal.ItemState;
-import org.craftercms.studio.api.v2.dal.PublishingHistoryItem;
-import org.craftercms.studio.api.v2.dal.RetryingDatabaseOperationFacade;
-import org.craftercms.studio.api.v2.dal.User;
+import org.craftercms.studio.api.v2.dal.*;
 import org.craftercms.studio.api.v2.service.content.internal.ContentServiceInternal;
 import org.craftercms.studio.api.v2.service.item.internal.ItemServiceInternal;
 import org.craftercms.studio.api.v2.service.security.internal.UserServiceInternal;
 import org.craftercms.studio.api.v2.utils.StudioUtils;
 import org.craftercms.studio.impl.v1.util.ContentUtils;
 import org.craftercms.studio.impl.v2.utils.DateUtils;
-import org.craftercms.studio.model.rest.dashboard.ContentDashboardItem;
 import org.craftercms.studio.model.rest.dashboard.PublishingDashboardItem;
 
 import java.time.ZonedDateTime;
 import java.util.*;
 
-import static java.util.stream.Collectors.toList;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.CONTENT_TYPE_FOLDER;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.CONTENT_TYPE_TAXONOMY_REGEX;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.CONTENT_TYPE_CONFIG_REGEX;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.CONTENT_TYPE_UNKNOWN;
-import static org.craftercms.studio.api.v1.constant.StudioConstants.FILE_SEPARATOR;
+import static org.craftercms.studio.api.v1.constant.StudioConstants.*;
 import static org.craftercms.studio.api.v2.dal.ItemState.*;
 import static org.craftercms.studio.api.v2.dal.PublishRequest.State.COMPLETED;
 import static org.craftercms.studio.api.v2.dal.QueryParameterNames.SITE_ID;
+import static org.craftercms.studio.api.v2.utils.DalUtils.mapSortFields;
 
 public class ItemServiceInternalImpl implements ItemServiceInternal {
     // TODO: SJ: Add logging to this class
@@ -78,13 +68,6 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     public boolean upsertEntry(Item item) {
         retryingDatabaseOperationFacade.retry(() -> itemDao.upsertEntry(item));
         return true;
-    }
-
-    @Override
-    public void upsertEntries(String siteId, List<Item> items) {
-        if (CollectionUtils.isNotEmpty(items)) {
-            retryingDatabaseOperationFacade.retry(() -> itemDao.upsertEntries(items));
-        }
     }
 
     @Override
@@ -137,11 +120,6 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     }
 
     @Override
-    public void deleteItem(long itemId) {
-        retryingDatabaseOperationFacade.retry(() -> itemDao.deleteById(itemId));
-    }
-
-    @Override
     public void deleteItem(String siteId, String path) {
         Map<String, String> params = new HashMap<>();
         params.put(SITE_ID, siteId);
@@ -179,12 +157,6 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
         }
     }
 
-    private void setStatesByIdBulk(List<Long> itemIds, long statesBitMap) {
-        if (CollectionUtils.isNotEmpty(itemIds)) {
-            retryingDatabaseOperationFacade.retry(() -> itemDao.setStatesByIdBulk(itemIds, statesBitMap));
-        }
-    }
-
     private void resetStatesBySiteAndPathBulk(String siteId, List<String> paths, long statesBitMap) {
         if (CollectionUtils.isNotEmpty(paths)) {
             Map<String, String> params = new HashMap<>();
@@ -192,50 +164,6 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
             SiteFeed siteFeed = siteFeedMapper.getSite(params);
             retryingDatabaseOperationFacade.retry(() -> itemDao.resetStatesBySiteAndPathBulk(siteFeed.getId(), paths, statesBitMap));
         }
-    }
-
-    private void resetStatesByIdBulk(List<Long> itemIds, long statesBitMap) {
-        if (CollectionUtils.isNotEmpty(itemIds)) {
-            retryingDatabaseOperationFacade.retry(() -> itemDao.resetStatesByIdBulk(itemIds, statesBitMap));
-        }
-    }
-
-    @Override
-    public void setStateBits(String siteId, String path, long statesBitMask) {
-        List<String> paths = new ArrayList<>();
-        paths.add(path);
-        setStatesBySiteAndPathBulk(siteId, paths, statesBitMask);
-    }
-
-    @Override
-    public void setStateBitsBulk(String siteId, List<String> paths, long statesBitMask) {
-        setStatesBySiteAndPathBulk(siteId, paths, statesBitMask);
-    }
-
-    @Override
-    public void resetStateBits(String siteId, String path, long statesBitMask) {
-        List<String> paths = new ArrayList<>();
-        paths.add(path);
-        resetStatesBySiteAndPathBulk(siteId, paths, statesBitMask);
-    }
-
-    @Override
-    public void resetStateBitsBulk(String siteId, List<String> paths, long statesBitMask) {
-        resetStatesBySiteAndPathBulk(siteId, paths, statesBitMask);
-    }
-
-    @Override
-    public void setStateBits(long itemId, long statesBitMask) {
-        List<Long> ids = new ArrayList<>();
-        ids.add(itemId);
-        setStatesByIdBulk(ids, statesBitMask);
-    }
-
-    @Override
-    public void resetStateBits(long itemId, long statesBitMask) {
-        List<Long> ids = new ArrayList<>();
-        ids.add(itemId);
-        resetStatesByIdBulk(ids, statesBitMask);
     }
 
     @Override
@@ -246,22 +174,8 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     }
 
     @Override
-    public void updateStateBits(long itemId, long onStateBitMap, long offStateBitMap) {
-        List<Long> ids = new ArrayList<>();
-        ids.add(itemId);
-        updateStateBitsBulk(ids, onStateBitMap, offStateBitMap);
-    }
-
-    @Override
     public void updateStateBitsBulk(String siteId, Collection<String> paths, long onStateBitMap, long offStateBitMap) {
         updateStatesBySiteAndPathBulk(siteId, paths, onStateBitMap, offStateBitMap);
-    }
-
-    @Override
-    public void updateStateBitsBulk(List<Long> itemIds, long onStateBitMap, long offStateBitMap) {
-        if (CollectionUtils.isNotEmpty(itemIds)) {
-            retryingDatabaseOperationFacade.retry(() -> itemDao.updateStatesByIdBulk(itemIds, onStateBitMap, offStateBitMap));
-        }
     }
 
     private void updateStatesBySiteAndPathBulk(String siteId, Collection<String> paths, long onStateBitMap,
@@ -278,7 +192,7 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     @Override
     public Item.Builder instantiateItem(String siteName, String path) {
         Item item = getItem(siteName, path);
-        if (Objects.isNull(item))  {
+        if (Objects.isNull(item)) {
             item = new Item();
             Map<String, String> params = new HashMap<>();
             params.put(SITE_ID, siteName);
@@ -292,56 +206,8 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     }
 
     @Override
-    public Item instantiateItem(long siteId, String siteName, String path, String previewUrl, long state, Long ownedBy,
-                                String owner, Long createdBy, String creator, ZonedDateTime createdOn,
-                                Long lastModifiedBy, String modifier, ZonedDateTime lastModifiedOn, String label,
-                                String contentTypeId, String systemType, String mimeType, String localeCode,
-                                Long translationSourceId, long size, Long parentId, String commitId) {
-
-        return instantiateItem(siteName, path).withPreviewUrl(previewUrl).withState(state).withLockedBy(ownedBy)
-                .withLockOwner(owner).withCreatedBy(createdBy).withCreator(creator).withCreatedOn(createdOn)
-                .withLastModifiedBy(lastModifiedBy).withModifier(modifier).withLastModifiedOn(lastModifiedOn)
-                .withLabel(label).withContentTypeId(contentTypeId).withSystemType(systemType).withMimeType(mimeType)
-                .withLocaleCode(localeCode).withTranslationSourceId(translationSourceId).withSize(size)
-                .withParentId(parentId).withCommitId(commitId).build();
-
-    }
-
-    @Override
     public void deleteItemsForSite(long siteId) {
         retryingDatabaseOperationFacade.retry(() -> itemDao.deleteItemsForSite(siteId));
-    }
-
-    @Override
-    public void deleteItemsById(List<Long> itemIds) {
-        if (CollectionUtils.isNotEmpty(itemIds)) {
-            retryingDatabaseOperationFacade.retry(() -> itemDao.deleteItemsById(itemIds));
-        }
-    }
-
-    @Override
-    public void deleteItemsForSiteAndPaths(long siteId, List<String> paths) {
-        if (CollectionUtils.isNotEmpty(paths)) {
-            retryingDatabaseOperationFacade.retry(() -> itemDao.deleteItemsForSiteAndPath(siteId, paths));
-        }
-    }
-
-    @Override
-    public int getContentDashboardTotal(String siteId, String path, String modifier, String contentType, long state,
-                                        ZonedDateTime dateFrom, ZonedDateTime dateTo) {
-        return itemDao.getContentDashboardTotal(siteId, path, modifier, contentType, state, dateFrom, dateTo);
-    }
-
-    @Override
-    public List<ContentDashboardItem> getContentDashboard(String siteId, String path, String modifier,
-                                                          String contentType, long state, ZonedDateTime dateFrom,
-                                                          ZonedDateTime dateTo, String sortBy, String order,
-                                                          int offset, int limit) {
-        List<Item> items = itemDao.getContentDashboard(siteId, path, modifier, contentType, state, dateFrom,
-                dateTo, sortBy, order, offset, limit);
-        return items.stream()
-                .map(i -> convertItemToContentDashboardItem(siteId, i))
-                .collect(toList());
     }
 
     @Override
@@ -353,7 +219,7 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
         } else if (ContentUtils.matchesPatterns(path, List.of(CONTENT_TYPE_TAXONOMY_REGEX))) {
             return null;
         } else if (ContentUtils.matchesPatterns(path, servicesConfig.getComponentPatterns(site)) ||
-                StringUtils.endsWith(path,FILE_SEPARATOR + servicesConfig.getLevelDescriptorName(site))) {
+                StringUtils.endsWith(path, FILE_SEPARATOR + servicesConfig.getLevelDescriptorName(site))) {
             return null;
         } else if (ContentUtils.matchesPatterns(path, servicesConfig.getScriptsPatterns(site))) {
             return null;
@@ -388,7 +254,7 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     public void persistItemAfterCreate(String siteId, String path, String username, String commitId,
                                        boolean unlock, Long parentId)
             throws ServiceLayerException, UserNotFoundException {
-        String lockKey = "persistItemAfterCreate:" + siteId ;
+        String lockKey = "persistItemAfterCreate:" + siteId;
         generalLockService.lock(lockKey);
         try {
             User userObj = userServiceInternal.getUserByIdOrUsername(-1, username);
@@ -484,7 +350,7 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
 
     @Override
     public void persistItemAfterRenameContent(String siteId, String path, String name, String username,
-                                             String commitId, String contentType)
+                                              String commitId, String contentType)
             throws ServiceLayerException, UserNotFoundException {
         User userObj = userServiceInternal.getUserByIdOrUsername(-1, username);
         Item item = instantiateItem(siteId, path)
@@ -506,16 +372,6 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
         retryingDatabaseOperationFacade.retry(() ->
                 itemDao.moveItem(siteId, oldPath, newPath, parentId, oldPreviewUrl, newPreviewUrl, label,
                         SAVE_AND_CLOSE_ON_MASK, SAVE_AND_CLOSE_OFF_MASK));
-    }
-
-    @Override
-    public void moveItems(String siteId, String oldPath, String newPath, Long parentId, String label) {
-        String oldPreviewUrl = getBrowserUrl(siteId, oldPath);
-        String newPreviewUrl = getBrowserUrl(siteId, newPath);
-
-        retryingDatabaseOperationFacade.retry(() ->
-                itemDao.moveItems(siteId, oldPath, newPath, parentId, oldPreviewUrl, newPreviewUrl, label, SAVE_AND_CLOSE_ON_MASK,
-                        SAVE_AND_CLOSE_OFF_MASK));
     }
 
     @Override
@@ -548,26 +404,8 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     }
 
     @Override
-    public ContentDashboardItem convertItemToContentDashboardItem(String siteId, Item item) {
-        ContentDashboardItem contentDashboardItem = new ContentDashboardItem();
-        contentDashboardItem.setSiteId(siteId);
-        contentDashboardItem.setPath(item.getPath());
-        contentDashboardItem.setLabel(item.getLabel());
-        contentDashboardItem.setModifier(item.getModifier());
-        contentDashboardItem.setModifiedDate(item.getLastModifiedOn());
-        contentDashboardItem.setContentType(item.getContentTypeId());
-        contentDashboardItem.setState(item.getState());
-        return contentDashboardItem;
-    }
-
-    @Override
     public List<Item> getInProgressItems(String siteId) {
         return itemDao.getInProgressItems(siteId, IN_PROGRESS_MASK);
-    }
-
-    @Override
-    public List<Item> getSubmittedItems(String siteId) {
-        return itemDao.getSubmittedItems(siteId, SUBMITTED_MASK);
     }
 
     @Override
@@ -630,23 +468,10 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     }
 
     @Override
-    public void updateLastPublishedOnBulk(String siteId, List<String> paths, ZonedDateTime lastPublishedOn) {
-        retryingDatabaseOperationFacade.retry(() -> itemDao.updateLastPublishedOnBulk(siteId, paths, lastPublishedOn));
-    }
-
-    @Override
     public void lockItemByPath(String siteId, String path, String username)
             throws UserNotFoundException, ServiceLayerException {
         User user = userServiceInternal.getUserByIdOrUsername(-1, username);
         retryingDatabaseOperationFacade.retry(() -> itemDao.lockItemByPath(siteId, path, user.getId(), USER_LOCKED.value, CONTENT_TYPE_FOLDER));
-    }
-
-    @Override
-    public void lockItemsByPath(String siteId, List<String> paths, String username)
-            throws UserNotFoundException, ServiceLayerException {
-        User user = userServiceInternal.getUserByIdOrUsername(-1, username);
-        retryingDatabaseOperationFacade.retry(() -> itemDao.lockItemsByPath(siteId, paths, user.getId(), USER_LOCKED.value,
-                CONTENT_TYPE_FOLDER));
     }
 
     @Override
@@ -655,13 +480,13 @@ public class ItemServiceInternalImpl implements ItemServiceInternal {
     }
 
     @Override
-    public int getItemStatesTotal(String siteId, String path, Long states) {
-        return itemDao.getItemStatesTotal(siteId, path, states);
+    public int getItemStatesTotal(String siteId, String path, Long states, List<String> systemTypes) {
+        return itemDao.getItemStatesTotal(siteId, path, states, systemTypes);
     }
 
     @Override
-    public List<Item> getItemStates(String siteId, String path, Long states, int offset, int limit) {
-        return itemDao.getItemStates(siteId, path, states, offset, limit);
+    public List<Item> getItemStates(String siteId, String path, Long states, List<String> systemTypes, List<SortField> sortFields, int offset, int limit) {
+        return itemDao.getItemStates(siteId, path, states, systemTypes, mapSortFields(sortFields, ItemDAO.SORT_FIELD_MAP), offset, limit);
     }
 
     @Override

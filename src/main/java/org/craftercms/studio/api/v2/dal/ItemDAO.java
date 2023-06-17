@@ -17,14 +17,27 @@
 package org.craftercms.studio.api.v2.dal;
 
 import org.apache.ibatis.annotations.Param;
+import org.craftercms.commons.rest.parameters.SortField;
 
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.craftercms.studio.api.v2.dal.QueryParameterNames.*;
 
 public interface ItemDAO {
+
+    Map<String, String> SORT_FIELD_MAP = Map.of(
+            "id", "id",
+            "dateModified", "last_modified_on",
+            "label", "label");
+
+    Map<String, String> DETAILED_ITEM_SORT_FIELD_MAP = Map.of(
+            "id", "id",
+            "dateModified", "last_modified_on",
+            "dateScheduled", "IFNULL(live_scheduleddate,staging_scheduleddate)",
+            "label", "label");
 
     /**
      * Get total number of children for given path
@@ -79,13 +92,6 @@ public interface ItemDAO {
      * @param item item to insert/update
      */
     void upsertEntry(Item item);
-
-    /**
-     * Insert or update items
-     *
-     * @param entries list of items to insert
-     */
-    void upsertEntries(@Param(ENTRIES) List<Item> entries);
 
     /**
      * Get item by id
@@ -145,12 +151,6 @@ public interface ItemDAO {
 
     /**
      * Delete item
-     * @param id id of the item to delete
-     */
-    void deleteById(@Param(ID) long id);
-
-    /**
-     * Delete item
      * @param siteId site identifier
      * @param path path of item to delete
      */
@@ -166,13 +166,6 @@ public interface ItemDAO {
                                     @Param(STATES_BIT_MAP) long statesBitMap);
 
     /**
-     * Set items state
-     * @param itemIds ids of items
-     * @param statesBitMap states bit map to be set
-     */
-    void setStatesByIdBulk(@Param(ITEM_IDS) List<Long> itemIds, @Param(STATES_BIT_MAP) long statesBitMap);
-
-    /**
      * Reset items state
      * @param siteId site identifier
      * @param paths paths of items
@@ -180,13 +173,6 @@ public interface ItemDAO {
      */
     void resetStatesBySiteAndPathBulk(@Param(SITE_ID) long siteId, @Param(PATHS) List<String> paths,
                                     @Param(STATES_BIT_MAP) long statesBitMap);
-
-    /**
-     * Reset items state
-     * @param itemIds ids of items
-     * @param statesBitMap states bit map to be reset
-     */
-    void resetStatesByIdBulk(@Param(ITEM_IDS) List<Long> itemIds, @Param(STATES_BIT_MAP) long statesBitMap);
 
     /**
      * Update states to flip on list off states and flip off another list of states for items
@@ -197,17 +183,6 @@ public interface ItemDAO {
      * @param offStatesBitMap state bitmap to flip off
      */
     void updateStatesBySiteAndPathBulk(@Param(SITE_ID) long siteId, @Param(PATHS) Collection<String> paths,
-                                   @Param(ON_STATES_BIT_MAP) long onStatesBitMap,
-                                   @Param(OFF_STATES_BIT_MAP) long offStatesBitMap);
-
-    /**
-     * Update states to flip on list off states and flip off another list of states for items
-     *
-     * @param itemIds list of item identifiers
-     * @param onStatesBitMap state bitmap to flip on
-     * @param offStatesBitMap state bitmap to flip off
-     */
-    void updateStatesByIdBulk(@Param(ITEM_IDS) List<Long> itemIds,
                                    @Param(ON_STATES_BIT_MAP) long onStatesBitMap,
                                    @Param(OFF_STATES_BIT_MAP) long offStatesBitMap);
 
@@ -228,63 +203,11 @@ public interface ItemDAO {
     void deleteItemsForSite(@Param(SITE_ID) long siteId);
 
     /**
-     * Delete items by id
-     * @param itemIds item ids
-     */
-    void deleteItemsById(@Param(ITEM_IDS) List<Long> itemIds);
-
-    /**
-     * Delete items for site and paths
-     * @param siteId site id
-     * @param paths paths of the items
-     */
-    void deleteItemsForSiteAndPath(@Param(SITE_ID) long siteId, @Param(PATHS) List<String> paths);
-
-    /**
      * Delete items for site and folder path
      * @param siteId site id
      * @param path path of the folder
      */
     void deleteBySiteAndPathForFolder(@Param(SITE_ID) long siteId, @Param(FOLDER_PATH) String path);
-
-    /**
-     * Get total number of records for content dashboard
-     *
-     * @param siteId site identifier
-     * @param path path regular expression to apply as filter for result set
-     * @param modifier filter results by user
-     * @param contentType filter results by content type
-     * @param state filter results by state
-     * @param dateFrom lower boundary for modified date
-     * @param dateTo upper boundary for modified date
-     * @return total number of records in result set
-     */
-    int getContentDashboardTotal(@Param(SITE_ID) String siteId, @Param(PATH) String path,
-                                 @Param(MODIFIER) String modifier, @Param(CONTENT_TYPE) String contentType,
-                                 @Param(STATE) long state, @Param(DATE_FROM) ZonedDateTime dateFrom,
-                                 @Param(DATE_TO) ZonedDateTime dateTo);
-
-    /**
-     * Get result set for content dashboard
-     *
-     * @param siteId site identifier
-     * @param path path regular expression to apply as filter for result set
-     * @param modifier filter results by user
-     * @param contentType filter results by content type
-     * @param state filter results by state
-     * @param dateFrom lower boundary for modified date
-     * @param dateTo upper boundary for modified date
-     * @param sort sort results by column
-     * @param order order of results
-     * @param offset offset of the first record in result set
-     * @param limit number of records to return
-     * @return list of item metadata records
-     */
-    List<Item> getContentDashboard(@Param(SITE_ID) String siteId, @Param(PATH) String path,
-                                   @Param(MODIFIER) String modifier, @Param(CONTENT_TYPE) String contentType,
-                                   @Param(STATE) long state, @Param(DATE_FROM) ZonedDateTime dateFrom,
-                                   @Param(DATE_TO) ZonedDateTime dateTo, @Param(SORT_STRATEGY) String sort,
-                                   @Param(ORDER) String order, @Param(OFFSET) int offset, @Param(LIMIT) int limit);
 
     /**
      * Move item
@@ -321,6 +244,32 @@ public interface ItemDAO {
                                @Param(COMPLETED_STATE) String completedState,
                                @Param(STAGING_ENVIRONMENT) String stagingEnvironment,
                                @Param(LIVE_ENVIRONMENT) String liveEnvironment);
+
+    /**
+     * Get a list of {@link DetailedItem} for given site and filters (system_types, states)
+     *
+     * @param siteId             site identifier
+     * @param statesBitMap       states bit map to filter by
+     * @param systemTypeFolder   value for system type folder
+     * @param completedState     completed state
+     * @param systemTypes        system types to filter by
+     * @param sortFields         sort fields
+     * @param stagingEnvironment staging environment
+     * @param liveEnvironment    live environment
+     * @param offset             offset for the first record in result set
+     * @param limit              number of records to return
+     * @return list of filtered {@link DetailedItem}s
+     */
+    List<DetailedItem> getDetailedItemsByStates(@Param(SITE_ID) long siteId,
+                                                @Param(STATES_BIT_MAP) long statesBitMap,
+                                                @Param(SYSTEM_TYPE_FOLDER) String systemTypeFolder,
+                                                @Param(COMPLETED_STATE) String completedState,
+                                                @Param(SYSTEM_TYPES) List<String> systemTypes,
+                                                @Param(SORT_FIELDS) List<SortField> sortFields,
+                                                @Param(STAGING_ENVIRONMENT) String stagingEnvironment,
+                                                @Param(LIVE_ENVIRONMENT) String liveEnvironment,
+                                                @Param(OFFSET) int offset, @Param(LIMIT) int limit);
+
     /**
      * Get item with prefer content option for given path from database
      *
@@ -339,25 +288,6 @@ public interface ItemDAO {
                                             @Param(STAGING_ENVIRONMENT) String stagingEnvironment,
                                             @Param(LIVE_ENVIRONMENT) String liveEnvironment);
 
-
-    /**
-     * Move items
-     * @param siteId site identifier
-     * @param oldPath old path
-     * @param newPath new path
-     * @param parentId new parent id, if null parent will not be changed
-     * @param oldPreviewUrl old preview url
-     * @param newPreviewUrl new preview url
-     * @param label the new label
-     * @param onStatesBitMap state bitmap to flip on
-     * @param offStatesBitMap state bitmap to flip off
-     */
-    void moveItems(@Param(SITE_ID) String siteId, @Param(OLD_PATH) String oldPath, @Param(NEW_PATH) String newPath,
-                   @Param(PARENT_ID) Long parentId, @Param(OLD_PREVIEW_URL) String oldPreviewUrl,
-                   @Param(NEW_PREVIEW_URL) String newPreviewUrl, @Param(LABEL) String label,
-                   @Param(ON_STATES_BIT_MAP) long onStatesBitMap,
-                   @Param(OFF_STATES_BIT_MAP) long offStatesBitMap);
-
     /**
      * Get sandbox items for given paths
      * @param siteId site identifier
@@ -372,21 +302,25 @@ public interface ItemDAO {
 
     /**
      * Get sandbox items for given ids with prefer content option
-     * @param itemIds item ids
+     *
+     * @param itemIds          item ids
+     * @param sortFields
      * @param systemTypeFolder value for system type folder
      * @return list of items
      */
     List<Item> getSandboxItemsByIdPreferContent(@Param(ITEM_IDS) List<Long> itemIds,
-                                                @Param(SYSTEM_TYPE_FOLDER) String systemTypeFolder);
+                                                @Param(SYSTEM_TYPE_FOLDER) String systemTypeFolder, @Param(SORT_FIELDS) List<SortField> sortFields);
 
     /**
      * Get sandbox items for given ids
-     * @param itemIds item ids
+     *
+     * @param itemIds          item ids
+     * @param sortFields
      * @param systemTypeFolder value for system type folder
      * @return list of items
      */
     List<Item> getSandboxItemsById(@Param(ITEM_IDS) List<Long> itemIds,
-                                   @Param(SYSTEM_TYPE_FOLDER) String systemTypeFolder);
+                                   @Param(SYSTEM_TYPE_FOLDER) String systemTypeFolder, @Param(SORT_FIELDS) List<SortField> sortFields);
 
     /**
      * Get mandatory parents for publishing
@@ -426,14 +360,6 @@ public interface ItemDAO {
      * @return list of items
      */
     List<Item> getInProgressItems(@Param(SITE_ID) String siteId, @Param(IN_PROGRESS_MASK) long inProgressMask);
-
-    /**
-     * Get submitted items from DB
-     * @param siteId site identifier
-     * @param submittedMask mask with submitted states turned on
-     * @return list of items
-     */
-    List<Item> getSubmittedItems(@Param(SITE_ID) String siteId, @Param(SUBMITTED_MASK) long submittedMask);
 
     /**
      * Count items having previous path property set to given path
@@ -484,15 +410,6 @@ public interface ItemDAO {
                                @Param(LAST_PUBLISHED_ON) ZonedDateTime lastPublishedOn);
 
     /**
-     * Update last published date for item
-     * @param siteId site identifier
-     * @param paths list of paths
-     * @param lastPublishedOn published date
-     */
-    void updateLastPublishedOnBulk(@Param(SITE_ID) String siteId, @Param(PATHS) List<String> paths,
-                                   @Param(LAST_PUBLISHED_ON) ZonedDateTime lastPublishedOn);
-
-    /**
      * Finds all items related to a given content-type
      *
      * @param siteId the id of the site
@@ -515,18 +432,6 @@ public interface ItemDAO {
                         @Param(LOCKED_BIT_ON) long lockedBitOn, @Param(SYSTEM_TYPE_FOLDER) String systemTypeFolder);
 
     /**
-     * Lock items
-     * @param siteId site identifier
-     * @param paths list of item paths
-     * @param lockOwnerId lock owner
-     * @param lockedBitOn state bit mask with LOCKED bit on
-     * @param systemTypeFolder value for system type folder
-     */
-    void lockItemsByPath(@Param(SITE_ID) String siteId, @Param(PATHS) List<String> paths,
-                        @Param(LOCK_OWNER_ID) long lockOwnerId, @Param(LOCKED_BIT_ON) long lockedBitOn,
-                        @Param(SYSTEM_TYPE_FOLDER) String systemTypeFolder);
-
-    /**
      * Lock item
      * @param siteId site identifier
      * @param path path of the item
@@ -537,24 +442,32 @@ public interface ItemDAO {
 
     /**
      * Get total number of item states records for given filters by path regex and states mask
-     * @param siteId site identifier
-     * @param path path regex to filter items
-     * @param states states mask to filter items by state
+     *
+     * @param siteId      site identifier
+     * @param path        path regex to filter items
+     * @param states      states mask to filter items by state
+     * @param systemTypes system types to filter items
      * @return number of records
      */
-    int getItemStatesTotal(@Param(SITE_ID) String siteId, @Param(PATH) String path, @Param(STATES_BIT_MAP) Long states);
+    int getItemStatesTotal(@Param(SITE_ID) String siteId, @Param(PATH) String path,
+                           @Param(STATES_BIT_MAP) Long states, @Param(SYSTEM_TYPES) List<String> systemTypes);
 
     /**
      * Get item states for given filters by path regex and states mask
-     * @param siteId site identifier
-     * @param path path regex to filter items
-     * @param states states mask to filter items by state
-     * @param offset offset for the first record in result set
-     * @param limit number of item states records to return
+     *
+     * @param siteId      site identifier
+     * @param path        path regex to filter items
+     * @param states      states mask to filter items by state
+     * @param systemTypes system types to filter items
+     * @param sortFields  list of sort fields
+     * @param offset      offset for the first record in result set
+     * @param limit       number of item states records to return
      * @return list of sandbox items
      */
     List<Item> getItemStates(@Param(SITE_ID) String siteId, @Param(PATH) String path,
-                             @Param(STATES_BIT_MAP) Long states, @Param(OFFSET) int offset, @Param(LIMIT) int limit);
+                             @Param(STATES_BIT_MAP) Long states, @Param(SYSTEM_TYPES) List<String> systemTypes,
+                             @Param(SORT_FIELDS) List<SortField> sortFields,
+                             @Param(OFFSET) int offset, @Param(LIMIT) int limit);
 
     /**
      * Update item state by query

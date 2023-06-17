@@ -17,6 +17,7 @@
 package org.craftercms.studio.impl.v2.service.publish.internal;
 
 import org.apache.commons.collections.CollectionUtils;
+import org.craftercms.commons.rest.parameters.SortField;
 import org.craftercms.commons.security.permissions.annotations.ProtectedResourceId;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
@@ -26,6 +27,7 @@ import org.craftercms.studio.api.v2.repository.ContentRepository;
 import org.craftercms.studio.api.v2.repository.RepositoryChanges;
 import org.craftercms.studio.api.v2.service.item.internal.ItemServiceInternal;
 import org.craftercms.studio.api.v2.service.publish.internal.PublishServiceInternal;
+import org.craftercms.studio.api.v2.utils.DalUtils;
 import org.craftercms.studio.impl.v2.utils.DateUtils;
 import org.craftercms.studio.model.rest.dashboard.DashboardPublishingPackage;
 import org.springframework.beans.BeansException;
@@ -113,6 +115,15 @@ public class PublishServiceInternalImpl implements PublishServiceInternal, Appli
     }
 
     @Override
+    public int getPublishingHistoryDetailTotalItems(String siteId, String packageId) {
+        return publishRequestDao.getPublishingHistoryDetailTotalItems(siteId, packageId);
+    }
+
+    public List<PublishRequest> getPublishingHistoryDetail(String siteId, String packageId, int offset, int limit) {
+        return publishRequestDao.getPublishingHistoryDetail(siteId, packageId, offset, limit);
+    }
+
+    @Override
     public List<DeploymentHistoryItem> getDeploymentHistory(String siteId, List<String> environments,
                                                             ZonedDateTime fromDate, ZonedDateTime toDate,
                                                             String filterType, int numberOfItems) {
@@ -171,19 +182,19 @@ public class PublishServiceInternalImpl implements PublishServiceInternal, Appli
     }
 
     @Override
-    public int getPublishingPackagesScheduledTotal(String siteId, String publishingTarget, ZonedDateTime dateFrom,
-                                                   ZonedDateTime dateTo) {
+    public int getPublishingItemsScheduledTotal(String siteId, String publishingTarget, String approver,
+                                                ZonedDateTime dateFrom, ZonedDateTime dateTo, List<String> systemTypes) {
         return publishRequestDao
-                .getPublishingPackagesScheduledTotal(siteId, publishingTarget, READY_FOR_LIVE, dateFrom, dateTo)
+                .getPublishingItemsScheduledTotal(siteId, publishingTarget, approver, READY_FOR_LIVE, dateFrom, dateTo, systemTypes)
                 .orElse(0);
     }
 
     @Override
-    public List<DashboardPublishingPackage> getPublishingPackagesScheduled(String siteId, String publishingTarget,
-                                                                           ZonedDateTime dateFrom,
-                                                                           ZonedDateTime dateTo, int offset, int limit) {
-        return publishRequestDao.getPublishingPackagesScheduled(siteId, publishingTarget, READY_FOR_LIVE, dateFrom,
-                dateTo, offset, limit);
+    public List<PublishRequest> getPublishingItemsScheduled(String siteId, String publishingTarget, String approver,
+                                                            ZonedDateTime dateFrom, ZonedDateTime dateTo,
+                                                            List<String> systemTypes, List<SortField> sortFields, int offset, int limit) {
+        return publishRequestDao.getPublishingItemsScheduled(siteId, publishingTarget, approver, READY_FOR_LIVE,
+                dateFrom, dateTo, systemTypes, DalUtils.mapSortFields(sortFields,PublishRequestDAO.SORT_FIELD_MAP), offset, limit);
     }
 
     @Override

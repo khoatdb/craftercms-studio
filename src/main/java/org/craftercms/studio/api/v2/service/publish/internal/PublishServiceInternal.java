@@ -16,12 +16,10 @@
 
 package org.craftercms.studio.api.v2.service.publish.internal;
 
+import org.craftercms.commons.rest.parameters.SortField;
 import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
-import org.craftercms.studio.api.v2.dal.DeploymentHistoryItem;
-import org.craftercms.studio.api.v2.dal.PublishingHistoryItem;
-import org.craftercms.studio.api.v2.dal.PublishingPackage;
-import org.craftercms.studio.api.v2.dal.PublishingPackageDetails;
+import org.craftercms.studio.api.v2.dal.*;
 import org.craftercms.studio.api.v2.repository.RepositoryChanges;
 import org.craftercms.studio.model.rest.dashboard.DashboardPublishingPackage;
 
@@ -113,6 +111,28 @@ public interface PublishServiceInternal {
                                                      long state, String sortBy, String order, int offset, int limit);
 
     /**
+     * Get publishing history package detail total items
+     *
+     * @param siteId site identifier
+     * @param packageId package identifier
+     *
+     * @return number of package items
+     */
+    int getPublishingHistoryDetailTotalItems(String siteId, String packageId);
+
+    /**
+     * Get publishing history package detail items
+     *
+     * @param siteId site identifier
+     * @param packageId package identifier
+     * @param offset offset of the first result
+     * @param limit limit number of results
+     *
+     * @return publishing history package's items
+     */
+    List<PublishRequest> getPublishingHistoryDetail(String siteId, String packageId, int offset, int limit);
+
+    /**
      * Get deployment history from database
      * @param siteId site identifier
      * @param environments list of environments
@@ -148,31 +168,36 @@ public interface PublishServiceInternal {
     void initialPublish(String siteId) throws SiteNotFoundException;
 
     /**
-     * Get total number of scheduled publishing packages for given filters
+     * Get total number of scheduled publishing items for given filters
      *
-     * @param siteId site identifier
+     * @param siteId           site identifier
      * @param publishingTarget publishing target
-     * @param dateFrom lower boundary for schedule
-     * @param dateTo upper boundary for schedule
+     * @param approver         approver
+     * @param dateFrom         lower boundary for schedule
+     * @param dateTo           upper boundary for schedule
+     * @param systemTypes     system types
      * @return total number of results
      */
-    int getPublishingPackagesScheduledTotal(String siteId, String publishingTarget, ZonedDateTime dateFrom,
-                                            ZonedDateTime dateTo);
+    int getPublishingItemsScheduledTotal(String siteId, String publishingTarget, String approver, ZonedDateTime dateFrom,
+                                         ZonedDateTime dateTo, List<String> systemTypes);
 
     /**
-     * Get scheduled publishing packages
+     * Get scheduled publishing items
      *
-     * @param siteId site identifier
+     * @param siteId           site identifier
      * @param publishingTarget publishing target
-     * @param dateFrom lower boundary for schedule
-     * @param dateTo upper boundary for schedule
-     * @param offset offset of the first result
-     * @param limit limit number of results
-     * @return list of dashboard publishing packages
+     * @param approver         approver
+     * @param dateFrom         lower boundary for schedule
+     * @param dateTo           upper boundary for schedule
+     * @param systemTypes    system types
+     * @param sortFields       sort fields
+     * @param offset           offset of the first result
+     * @param limit            limit number of results
+     * @return list of publishing request items
      */
-    List<DashboardPublishingPackage> getPublishingPackagesScheduled(String siteId, String publishingTarget,
-                                                                    ZonedDateTime dateFrom, ZonedDateTime dateTo,
-                                                                    int offset, int limit);
+    List<PublishRequest> getPublishingItemsScheduled(String siteId, String publishingTarget, String approver,
+                                                     ZonedDateTime dateFrom, ZonedDateTime dateTo,
+                                                     List<String> systemTypes, List<SortField> sortFields, int offset, int limit);
 
     /**
      * Get total number of publishing packages for given filters

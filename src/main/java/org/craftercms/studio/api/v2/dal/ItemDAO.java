@@ -362,12 +362,12 @@ public interface ItemDAO {
     List<Item> getInProgressItems(@Param(SITE_ID) String siteId, @Param(IN_PROGRESS_MASK) long inProgressMask);
 
     /**
-     * Count items having previous path property set to given path
+     * Count non-new items having previous path property set to given path
      * @param siteId site identifier
      * @param previousPath path to check
      * @return number of items
      */
-    int countPreviousPaths(@Param(SITE_ID) String siteId, @Param(PREVIOUS_PATH) String previousPath);
+    int countPreviousPaths(@Param(SITE_ID) String siteId, @Param(PREVIOUS_PATH) String previousPath, @Param(NEW_MASK) long newMask);
 
     /**
      * Update commit id for item
@@ -391,14 +391,6 @@ public interface ItemDAO {
                                         @Param(LIKE_PATH) String likePath,
                                         @Param(NON_CONTENT_ITEM_TYPES) List<String> nonContentItemTypes,
                                         @Param(IN_PROGRESS_MASK) long inProgressMask);
-
-    /**
-     * Get items edited on same commit id for given item
-     * @param siteId site identifier
-     * @param path path of content item
-     * @return list of items paths
-     */
-    List<String> getSameCommitItems(@Param(SITE_ID) String siteId, @Param(PATH) String path);
 
     /**
      * Update last published date for item

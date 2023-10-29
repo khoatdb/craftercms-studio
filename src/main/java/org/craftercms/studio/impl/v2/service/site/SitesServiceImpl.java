@@ -19,13 +19,17 @@ package org.craftercms.studio.impl.v2.service.site;
 import org.craftercms.commons.plugin.model.PluginDescriptor;
 import org.craftercms.commons.security.permissions.DefaultPermission;
 import org.craftercms.commons.security.permissions.annotations.HasPermission;
-import org.craftercms.commons.security.permissions.annotations.ProtectedResourceId;
+import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteAlreadyExistsException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v1.service.site.SiteService;
+import org.craftercms.studio.api.v2.annotation.RequireSiteReady;
+import org.craftercms.studio.api.v2.annotation.SiteId;
 import org.craftercms.studio.api.v2.dal.PublishStatus;
 import org.craftercms.studio.api.v2.exception.InvalidParametersException;
+import org.craftercms.studio.api.v2.exception.InvalidSiteStateException;
 import org.craftercms.studio.api.v2.repository.ContentRepository;
+import org.craftercms.studio.api.v2.security.HasAllPermissions;
 import org.craftercms.studio.api.v2.service.publish.internal.PublishingProgressObserver;
 import org.craftercms.studio.api.v2.service.publish.internal.PublishingProgressServiceInternal;
 import org.craftercms.studio.api.v2.service.site.SitesService;
@@ -35,7 +39,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
-import static org.craftercms.studio.permissions.PermissionResolverImpl.SITE_ID_RESOURCE_ID;
 import static org.craftercms.studio.permissions.StudioPermissionsConstants.*;
 
 public class SitesServiceImpl implements SitesService {
@@ -75,8 +78,9 @@ public class SitesServiceImpl implements SitesService {
     }
 
     @Override
+    @RequireSiteReady
     @HasPermission(type = DefaultPermission.class, action = PERMISSION_EDIT_SITE)
-    public void updateSite(@ProtectedResourceId("siteId") String siteId, String name, String description)
+    public void updateSite(@SiteId String siteId, String name, String description)
             throws SiteNotFoundException, SiteAlreadyExistsException, InvalidParametersException {
         if (isBlank(name) && isBlank(description)) {
             throw new InvalidParametersException("The request needs to include a name or a description");
@@ -86,8 +90,9 @@ public class SitesServiceImpl implements SitesService {
     }
 
     @Override
+    @RequireSiteReady
     @HasPermission(type = DefaultPermission.class, action = PERMISSION_PUBLISH_STATUS)
-    public PublishStatus getPublishingStatus(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId) throws SiteNotFoundException {
+    public PublishStatus getPublishingStatus(@SiteId String siteId) throws SiteNotFoundException {
         siteService.checkSiteExists(siteId);
         PublishStatus publishStatus = sitesServiceInternal.getPublishingStatus(siteId);
         PublishingProgressObserver publishingProgressObserver =
@@ -103,9 +108,28 @@ public class SitesServiceImpl implements SitesService {
     }
 
     @Override
+    @RequireSiteReady
     @HasPermission(type = DefaultPermission.class, action = PERMISSION_PUBLISH_CLEAR_LOCK)
-    public void clearPublishingLock(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId) throws SiteNotFoundException {
+    public void clearPublishingLock(@SiteId String siteId) throws SiteNotFoundException {
         siteService.checkSiteExists(siteId);
         sitesServiceInternal.clearPublishingLock(siteId);
+    }
+
+    @Override
+    public void checkSiteState(final String siteId, final String state) throws InvalidSiteStateException, SiteNotFoundException {
+        sitesServiceInternal.checkSiteState(siteId, state);
+    }
+
+    @Override
+    @RequireSiteReady
+    @HasAllPermissions(type = DefaultPermission.class, actions = {PERMISSION_DUPLICATE_SITE, PERMISSION_CONTENT_READ,
+            PERMISSION_READ_CONFIGURATION, PERMISSION_CONTENT_SEARCH})
+    public void duplicate(@SiteId String sourceSiteId, String siteId, String siteName, String description, String sandboxBranch, boolean readOnlyBlobStores)
+            throws ServiceLayerException {
+        siteService.checkSiteExists(sourceSiteId);
+        if (siteService.exists(siteId)) {
+            throw new SiteAlreadyExistsException(siteId);
+        }
+        sitesServiceInternal.duplicate(sourceSiteId, siteId, siteName, description, sandboxBranch, readOnlyBlobStores);
     }
 }

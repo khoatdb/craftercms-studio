@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -27,9 +27,11 @@ import org.craftercms.studio.api.v1.exception.repository.InvalidRemoteUrlExcepti
 import org.craftercms.studio.api.v1.exception.repository.RemoteRepositoryNotFoundException;
 import org.craftercms.studio.api.v1.service.deployment.DeploymentException;
 import org.craftercms.studio.api.v1.to.DeploymentItemTO;
+import org.craftercms.studio.api.v1.to.VersionTO;
 import org.craftercms.studio.api.v2.dal.GitLog;
 import org.craftercms.studio.api.v2.dal.PublishingHistoryItem;
 import org.craftercms.studio.api.v2.dal.RepoOperation;
+import org.craftercms.studio.model.history.ItemVersion;
 import org.craftercms.studio.model.rest.content.DetailedItem;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.springframework.core.io.Resource;
@@ -453,4 +455,30 @@ public interface ContentRepository {
      * @throws ServiceLayerException if no content is found at the given path
      */
     void checkContentExists(String site, String path) throws ServiceLayerException;
+
+    /**
+     * Get the history of a content item. <br/>
+     * <strong>Note:</strong> the results of this method are not guaranteed when the path does not currently exist in the repository.
+     * @param site site id
+     * @param path path of the content item
+     * @return list of item versions
+     * @throws IOException if there is any error reading the git log or getting diffs between commits
+     * @throws GitAPIException if there is any error while executing git commands
+     */
+    List<ItemVersion> getContentItemHistory(String site, String path) throws IOException, GitAPIException;
+
+    /**
+     * Create copies of the source site's repositories.
+     * This method will copy sandbox and published (if exists) repositories under a new directory
+     * with the new site id.
+     * For sandbox repository, a new branch will be created (from the currently checked-out branch)
+     * with the given sandbox branch name if it does not exist.
+     *
+     * @param sourceSiteId  source site id
+     * @param siteId        new site id
+     * @param sandboxBranch sandbox branch name
+     * @throws IOException if there is any error while copying the directories
+     */
+    void duplicateSite(String sourceSiteId, String siteId, String sandboxBranch) throws IOException;
+
 }

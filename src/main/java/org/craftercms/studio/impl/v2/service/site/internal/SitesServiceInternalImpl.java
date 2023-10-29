@@ -20,18 +20,36 @@ import org.apache.commons.lang3.StringUtils;
 import org.craftercms.commons.plugin.PluginDescriptorReader;
 import org.craftercms.commons.plugin.exception.PluginException;
 import org.craftercms.commons.plugin.model.PluginDescriptor;
+import org.craftercms.studio.api.v1.constant.StudioConstants;
+import org.craftercms.studio.api.v1.dal.SiteFeed;
 import org.craftercms.studio.api.v1.dal.SiteFeedMapper;
+import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteAlreadyExistsException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v1.repository.ContentRepository;
 import org.craftercms.studio.api.v1.repository.RepositoryItem;
+import org.craftercms.studio.api.v1.service.security.SecurityService;
+import org.craftercms.studio.api.v1.service.site.SiteService;
+import org.craftercms.studio.api.v2.dal.AuditLog;
+import org.craftercms.studio.api.v2.dal.AuditLogParameter;
 import org.craftercms.studio.api.v2.dal.PublishStatus;
 import org.craftercms.studio.api.v2.dal.RetryingDatabaseOperationFacade;
+import org.craftercms.studio.api.v2.deployment.Deployer;
+import org.craftercms.studio.api.v2.event.site.SiteReadyEvent;
+import org.craftercms.studio.api.v2.exception.InvalidSiteStateException;
+import org.craftercms.studio.api.v2.service.audit.internal.AuditServiceInternal;
+import org.craftercms.studio.api.v2.service.config.ConfigurationService;
 import org.craftercms.studio.api.v2.service.site.SitesService;
 import org.craftercms.studio.api.v2.utils.StudioConfiguration;
+import org.craftercms.studio.impl.v2.deployment.PreviewDeployer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.lang.NonNull;
 
+import java.beans.ConstructorProperties;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,19 +58,56 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
+import static java.lang.String.format;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.craftercms.studio.api.v2.dal.AuditLogConstants.*;
+import static org.craftercms.studio.api.v2.dal.QueryParameterNames.SITE_ID;
 import static org.craftercms.studio.api.v2.utils.StudioConfiguration.*;
 
-public class SitesServiceInternalImpl implements SitesService {
+public class SitesServiceInternalImpl implements SitesService, ApplicationContextAware {
 
     private final static Logger logger = LoggerFactory.getLogger(SitesServiceInternalImpl.class);
 
-    private PluginDescriptorReader descriptorReader;
-    private ContentRepository contentRepository;
-    private StudioConfiguration studioConfiguration;
-    private SiteFeedMapper siteFeedMapper;
-    private RetryingDatabaseOperationFacade retryingDatabaseOperationFacade;
+    private final PluginDescriptorReader descriptorReader;
+    private final ContentRepository contentRepository;
+    private final org.craftercms.studio.api.v2.repository.ContentRepository contentRepositoryV2;
+    private final StudioConfiguration studioConfiguration;
+    private final SiteFeedMapper siteFeedMapper;
+    private final RetryingDatabaseOperationFacade retryingDatabaseOperationFacade;
+    private final SiteService siteServiceV1;
+    private final Deployer deployer;
+    private final ConfigurationService configurationService;
+    private final SecurityService securityService;
+    private final AuditServiceInternal auditServiceInternal;
+    private ApplicationContext applicationContext;
+
+    @ConstructorProperties({"descriptorReader", "contentRepository",
+            "contentRepositoryV2",
+            "studioConfiguration", "siteFeedMapper",
+            "retryingDatabaseOperationFacade", "siteServiceV1",
+            "deployer", "configurationService",
+            "securityService", "auditServiceInternal"})
+    public SitesServiceInternalImpl(PluginDescriptorReader descriptorReader, ContentRepository contentRepository,
+                                    org.craftercms.studio.api.v2.repository.ContentRepository contentRepositoryV2,
+                                    StudioConfiguration studioConfiguration, SiteFeedMapper siteFeedMapper,
+                                    RetryingDatabaseOperationFacade retryingDatabaseOperationFacade, SiteService siteServiceV1,
+                                    Deployer deployer, ConfigurationService configurationService,
+                                    SecurityService securityService, AuditServiceInternal auditServiceInternal) {
+        this.descriptorReader = descriptorReader;
+        this.contentRepository = contentRepository;
+        this.contentRepositoryV2 = contentRepositoryV2;
+        this.studioConfiguration = studioConfiguration;
+        this.siteFeedMapper = siteFeedMapper;
+        this.retryingDatabaseOperationFacade = retryingDatabaseOperationFacade;
+        this.siteServiceV1 = siteServiceV1;
+        this.deployer = deployer;
+        this.configurationService = configurationService;
+        this.securityService = securityService;
+        this.auditServiceInternal = auditServiceInternal;
+    }
 
     @Override
     public List<PluginDescriptor> getAvailableBlueprints() {
@@ -167,39 +222,120 @@ public class SitesServiceInternalImpl implements SitesService {
         retryingDatabaseOperationFacade.retry(() -> siteFeedMapper.clearPublishingLockForSite(siteId));
     }
 
-    public void setDescriptorReader(PluginDescriptorReader descriptorReader) {
-        this.descriptorReader = descriptorReader;
+    @Override
+    public void checkSiteState(final String siteId, final String requiredState) throws InvalidSiteStateException, SiteNotFoundException {
+        SiteFeed site = siteFeedMapper.getSite(Map.of(SITE_ID, siteId));
+        if (site == null) {
+            throw new SiteNotFoundException(siteId);
+        }
+        if (!requiredState.equals(site.getState())) {
+            throw new InvalidSiteStateException(siteId, format("Site '%s' state ('%s') is not the required value: '%s'",
+                    siteId, site.getState(), requiredState));
+        }
     }
 
-    public ContentRepository getContentRepository() {
-        return contentRepository;
+    @Override
+    public void duplicate(String sourceSiteId, String siteId, String siteName, String description, String sandboxBranch, boolean readOnlyBlobStores)
+            throws ServiceLayerException {
+        if (isNotEmpty(siteName) && siteFeedMapper.isNameUsed(siteId, siteName)) {
+            throw new SiteAlreadyExistsException(format("A site with name '%s' already exists", siteName));
+        }
+        logger.info("Site duplicate from '{}' to '{}' - START", sourceSiteId, siteId);
+
+        boolean publishingEnabled = siteServiceV1.isPublishingEnabled(sourceSiteId);
+        try {
+            // Lock source site
+            if (publishingEnabled) {
+                siteServiceV1.enablePublishing(sourceSiteId, false);
+            }
+            retryingDatabaseOperationFacade.retry(() -> siteFeedMapper.setSiteState(sourceSiteId, SiteFeed.STATE_LOCKED));
+
+            // Copy site repos in disk
+            logger.debug("Duplicate site repos in disk from '{}' to '{}'", sourceSiteId, siteId);
+            contentRepositoryV2.duplicateSite(sourceSiteId, siteId, sandboxBranch);
+
+            String siteUuid = UUID.randomUUID().toString();
+            addSiteUuidFile(siteId, siteUuid);
+            // Create site in db (site state is INITIALIZING) and copy all db data
+            logger.debug("Duplicate site DB data from '{}' to '{}'", sourceSiteId, siteId);
+            retryingDatabaseOperationFacade.retry(() -> siteFeedMapper.duplicate(sourceSiteId, siteId, siteName, description, sandboxBranch, siteUuid));
+
+            // Duplicate site in deployer
+            logger.debug("Duplicate site deployer targets from '{}' to '{}'", sourceSiteId, siteId);
+            deployer.duplicateTargets(sourceSiteId, siteId);
+
+            // read-only blobstores
+            if (readOnlyBlobStores) {
+                logger.debug("Make blobstores read-only for duplicate site '{}'", siteId);
+                configurationService.makeBlobStoresReadOnly(siteId);
+            }
+
+            auditSiteDuplicate(sourceSiteId, siteId, siteName);
+
+            // Set site state to READY
+            retryingDatabaseOperationFacade.retry(() -> siteFeedMapper.setSiteState(siteId, SiteFeed.STATE_READY));
+            siteServiceV1.enablePublishing(siteId, true);
+            applicationContext.publishEvent(new SiteReadyEvent(securityService.getAuthentication(), siteId));
+            logger.info("Site duplicate from '{}' to '{}' - COMPLETE", sourceSiteId, siteId);
+        } catch (ServiceLayerException ex) {
+            siteServiceV1.deleteSite(siteId);
+            throw ex;
+        } catch (Exception ex) {
+            siteServiceV1.deleteSite(siteId);
+            throw new ServiceLayerException(format("Failed to duplicate site '%s' into '%s'", sourceSiteId, siteId), ex);
+        } finally {
+            // Unlock source site
+            retryingDatabaseOperationFacade.retry(() -> siteFeedMapper.setSiteState(sourceSiteId, SiteFeed.STATE_READY));
+            if (publishingEnabled) {
+                siteServiceV1.enablePublishing(sourceSiteId, true);
+            }
+        }
     }
 
-    public void setContentRepository(ContentRepository contentRepository) {
-        this.contentRepository = contentRepository;
+    /**
+     * Creates an audit log entry for the site duplication operation, including the source site as audit params
+     *
+     * @param sourceSiteId the source site id
+     * @param siteId       the new site id
+     * @param siteName     the new site name
+     */
+    protected void auditSiteDuplicate(final String sourceSiteId, final String siteId, final String siteName) {
+        SiteFeed globalSiteFeed = siteFeedMapper.getSite(Map.of(SITE_ID, studioConfiguration.getProperty(CONFIGURATION_GLOBAL_SYSTEM_SITE)));
+        AuditLog auditLog = auditServiceInternal.createAuditLogEntry();
+        auditLog.setOperation(OPERATION_DUPLICATE);
+        auditLog.setSiteId(globalSiteFeed.getId());
+        auditLog.setActorId(securityService.getCurrentUser());
+        auditLog.setPrimaryTargetId(siteId);
+        auditLog.setPrimaryTargetType(TARGET_TYPE_SITE);
+        auditLog.setPrimaryTargetValue(siteName);
+        List<AuditLogParameter> auditLogParameters = new ArrayList<>();
+        AuditLogParameter auditLogParameter = new AuditLogParameter();
+        auditLogParameter.setTargetId(siteId);
+        auditLogParameter.setTargetType(TARGET_TYPE_SOURCE_SITE);
+        auditLogParameter.setTargetValue(sourceSiteId);
+        auditLogParameters.add(auditLogParameter);
+
+        auditLog.setParameters(auditLogParameters);
+        auditServiceInternal.insertAuditLog(auditLog);
     }
 
-    public StudioConfiguration getStudioConfiguration() {
-        return studioConfiguration;
+    /**
+     * Add a file containing the site uuid in the site folder
+     *
+     * @param site     site id
+     * @param siteUuid site uuid
+     * @throws IOException if the file cannot be written
+     */
+    protected void addSiteUuidFile(final String site, final String siteUuid) throws IOException {
+        Path path = Paths.get(studioConfiguration.getProperty(REPO_BASE_PATH),
+                studioConfiguration.getProperty(SITES_REPOS_PATH), site,
+                StudioConstants.SITE_UUID_FILENAME);
+        String toWrite = StudioConstants.SITE_UUID_FILE_COMMENT + "\n" + siteUuid;
+        Files.write(path, toWrite.getBytes());
     }
 
-    public void setStudioConfiguration(StudioConfiguration studioConfiguration) {
-        this.studioConfiguration = studioConfiguration;
-    }
-
-    public SiteFeedMapper getSiteFeedMapper() {
-        return siteFeedMapper;
-    }
-
-    public void setSiteFeedMapper(SiteFeedMapper siteFeedMapper) {
-        this.siteFeedMapper = siteFeedMapper;
-    }
-
-    public RetryingDatabaseOperationFacade getRetryingDatabaseOperationFacade() {
-        return retryingDatabaseOperationFacade;
-    }
-
-    public void setRetryingDatabaseOperationFacade(RetryingDatabaseOperationFacade retryingDatabaseOperationFacade) {
-        this.retryingDatabaseOperationFacade = retryingDatabaseOperationFacade;
+    @Override
+    public void setApplicationContext(@NonNull ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
     }
 }

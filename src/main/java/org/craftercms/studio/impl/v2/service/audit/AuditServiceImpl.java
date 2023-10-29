@@ -19,12 +19,13 @@ package org.craftercms.studio.impl.v2.service.audit;
 import org.apache.commons.collections4.CollectionUtils;
 import org.craftercms.commons.security.permissions.DefaultPermission;
 import org.craftercms.commons.security.permissions.annotations.HasPermission;
-import org.craftercms.commons.security.permissions.annotations.ProtectedResourceId;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v1.service.content.ContentService;
 import org.craftercms.studio.api.v1.service.security.SecurityService;
 import org.craftercms.studio.api.v1.service.site.SiteService;
 import org.craftercms.studio.api.v1.to.ContentItemTO;
+import org.craftercms.studio.api.v2.annotation.RequireSiteReady;
+import org.craftercms.studio.api.v2.annotation.SiteId;
 import org.craftercms.studio.api.v2.dal.AuditLog;
 import org.craftercms.studio.api.v2.service.audit.AuditService;
 import org.craftercms.studio.api.v2.service.audit.internal.AuditServiceInternal;
@@ -37,7 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.rometools.utils.Strings.isNotEmpty;
-import static org.craftercms.studio.permissions.PermissionResolverImpl.SITE_ID_RESOURCE_ID;
 import static org.craftercms.studio.permissions.StudioPermissionsConstants.PERMISSION_AUDIT_LOG;
 
 public class AuditServiceImpl implements AuditService {
@@ -50,8 +50,9 @@ public class AuditServiceImpl implements AuditService {
     private SecurityService securityService;
 
     @Override
+    @RequireSiteReady
     @HasPermission(type = DefaultPermission.class, action = PERMISSION_AUDIT_LOG)
-    public List<AuditLog> getAuditLog(@ProtectedResourceId(SITE_ID_RESOURCE_ID) String siteId,
+    public List<AuditLog> getAuditLog(@SiteId String siteId,
                                       int offset, int limit,
                                       String user,
                                       List<String> operations,
@@ -71,8 +72,9 @@ public class AuditServiceImpl implements AuditService {
     }
 
     @Override
+    @RequireSiteReady
     @HasPermission(type = DefaultPermission.class, action = PERMISSION_AUDIT_LOG)
-    public int getAuditLogTotal(String siteId, String user, List<String> operations, boolean includeParameters, ZonedDateTime dateFrom, ZonedDateTime dateTo,
+    public int getAuditLogTotal(@SiteId String siteId, String user, List<String> operations, boolean includeParameters, ZonedDateTime dateFrom, ZonedDateTime dateTo,
                                 String target, String origin, String clusterNodeId) throws SiteNotFoundException {
         if (isNotEmpty(siteId)) {
             siteService.checkSiteExists(siteId);
@@ -83,8 +85,9 @@ public class AuditServiceImpl implements AuditService {
     }
 
     @Override
+    @RequireSiteReady
     @HasPermission(type = DefaultPermission.class, action = PERMISSION_AUDIT_LOG)
-    public AuditLog getAuditLogEntry(@ProtectedResourceId(SITE_ID_RESOURCE_ID) final String siteId, final long auditLogId) throws SiteNotFoundException {
+    public AuditLog getAuditLogEntry(@SiteId final String siteId, final long auditLogId) throws SiteNotFoundException {
         if (isNotEmpty(siteId)) {
             siteService.checkSiteExists(siteId);
         }
@@ -92,7 +95,8 @@ public class AuditServiceImpl implements AuditService {
     }
 
     @Override
-    public List<ContentItemTO> getUserActivities(String site, int limit, String sort, boolean ascending,
+    @RequireSiteReady
+    public List<ContentItemTO> getUserActivities(@SiteId String site, int limit, String sort, boolean ascending,
                                                  boolean excludeLive, String filterType) {
         int startPos = 0;
         List<ContentItemTO> contentItems = new ArrayList<>();

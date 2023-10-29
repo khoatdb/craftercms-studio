@@ -36,7 +36,7 @@
     <parent>
         <groupId>org.craftercms</groupId>
         <artifactId>craftercms</artifactId>
-        <version>4.1.1</version><!-- craftercms version flag -->
+        <version>4.1.2</version><!-- craftercms version flag -->
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
@@ -292,6 +292,12 @@
         </dependency>
 
         <!-- testing -->
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit.junit</artifactId>
+            <version>${jgit.version}</version>
+        </dependency>
+
         <!-- Tomcat EL -->
         <dependency>
             <groupId>org.apache.tomcat</groupId>
@@ -524,7 +530,17 @@
 
         <!-- Tinify -->
         <dependency>
-	    <groupId>com.squareup.okhttp3</groupId><!-- Override to address an issue with Tinify's dependencies -->
+            <groupId>com.squareup.okio</groupId><!-- Override -->
+            <artifactId>okio-jvm</artifactId>
+            <version>${okio.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okio</groupId><!-- Override -->
+            <artifactId>okio</artifactId>
+            <version>${okio.version}</version>
+        </dependency>
+        <dependency>
+	        <groupId>com.squareup.okhttp3</groupId><!-- Override to address an issue with Tinify's dependencies -->
             <artifactId>okhttp</artifactId>
             <version>${okhttp.version}</version>
         </dependency>
@@ -538,12 +554,6 @@
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>${gson.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>xerces</groupId>
-            <artifactId>xercesImpl</artifactId>
-            <version>${xerces.version}</version>
         </dependency>
 
         <dependency>
@@ -624,9 +634,9 @@
                                 <exclude>/WEB-INF/lib/httpclient-4.5.2.jar</exclude>
                                 <exclude>/WEB-INF/lib/httpcore-4.4.4.jar</exclude>
                                 <exclude>/WEB-INF/lib/commons-logging-1.2.jar</exclude>
-                                <exclude>/WEB-INF/lib/slf4j-api-1.7.7.jar</exclude>
-                                <exclude>/WEB-INF/lib/slf4j-log4j12-1.7.7.jar</exclude>
-                                <exclude>/WEB-INF/lib/jcl-over-slf4j-1.7.7.jar</exclude>
+                                <exclude>/WEB-INF/lib/slf4j-api-*.jar</exclude>
+                                <exclude>/WEB-INF/lib/slf4j-log4j12-*.jar</exclude>
+                                <exclude>/WEB-INF/lib/jcl-over-slf4j-*.jar</exclude>
                                 <exclude>/WEB-INF/lib/spring-security-core-4.2.7.RELEASE.jar</exclude>
                                 <exclude>/WEB-INF/templates/system/common/versionInfo.ftl</exclude>
                                 <exclude>/WEB-INF/classes/crafter/engine/services/security-context.xml</exclude>
@@ -709,7 +719,7 @@
             </activation>
             <properties>
                 <studio.ui.path>target/ui/</studio.ui.path>
-                <studio.ui.version>master</studio.ui.version><!-- craftercms ui version flag -->
+                <studio.ui.version>v4.1.2</studio.ui.version><!-- craftercms ui version flag -->
             </properties>
             <build>
                 <plugins>
@@ -717,7 +727,7 @@
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
                         <inherited>false</inherited> <!-- only execute these in the parent -->
-                        <version>1.5.0</version>
+                        <version>3.1.0</version>
                         <executions>
                             <execution>
                                 <id>git get ui</id>

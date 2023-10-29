@@ -168,6 +168,13 @@ public class ExceptionHandlers {
         return handleExceptionInternal(request, e, response);
     }
 
+    @ExceptionHandler(InvalidSiteStateException.class)
+    @ResponseStatus(BAD_REQUEST)
+    public ResponseBody handleInvalidSiteStateException(HttpServletRequest request, InvalidSiteStateException e) {
+        ApiResponse response = new ApiResponse(ApiResponse.INVALID_SITE_STATE);
+        return handleExceptionInternal(request, e, response);
+    }
+
     @ExceptionHandler(MarketplaceNotInitializedException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ResponseBody handleMarketplaceNotInitializedException(HttpServletRequest request,
@@ -486,6 +493,16 @@ public class ExceptionHandlers {
         response.setMessage(format("%s:%s", response.getMessage(), e.getMessage()));
         return handleExceptionInternal(request, e, response);
     }
+
+    @ResponseStatus(BAD_REQUEST)
+    @ExceptionHandler
+    public ResponseBody handleSitePolicyValidationException(HttpServletRequest request,
+                                                            org.craftercms.studio.api.v2.exception.validation.ValidationException e) {
+        ApiResponse response = new ApiResponse(INVALID_PARAMS);
+        response.setMessage(format("%s:%s", response.getMessage(), e.getMessage()));
+        return handleExceptionInternal(request, e, response);
+    }
+
 
     @ExceptionHandler({ValidationRuntimeException.class, ValidationException.class})
     @ResponseStatus(BAD_REQUEST)

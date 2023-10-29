@@ -27,7 +27,7 @@
 # studio.mail.username:
 # SMTP password for authenticated access when sending emails.
 # studio.mail.password:
-# Turn on/off (value true/false) SMTP authenaticated access protocol.
+# Turn on/off (value true/false) SMTP authenticated access protocol.
 # studio.mail.smtp.auth: false
 # Enable/disable (value true/false) SMTP TLS protocol when sending emails.
 # studio.mail.smtp.starttls.enable: false
@@ -92,7 +92,7 @@
 # studio.serverless.delivery.deployer.target.createUrl: ${studio.preview.createTargetUrl}
 # The URL for the serverless delivery deployer delete URL
 # studio.serverless.delivery.deployer.target.deleteUrl: ${studio.preview.deleteTargetUrl}
-# The template name for serverless deployer targets
+# The template name for serverless deployer targets (supported: aws-s3, aws-cloudformed-s3)
 # studio.serverless.delivery.deployer.target.template: aws-cloudformed-s3
 # Replace existing target configuration if one exists?
 # studio.serverless.delivery.deployer.target.replace: false
@@ -115,6 +115,14 @@
 #     default_access_key:
 #     # AWS secret key (optional if specified through default AWS chain)
 #     default_secret_key:
+#     # The S3 configurations, apply to aws-s3 deployer target template (see studio.serverless.delivery.deployer.target.template property)
+#     s3:
+#      # The S3 bucket name (required)
+#      url: s3://mybucketname/sites/{siteName}
+#      # The S3 endpoint (optional)
+#      endpoint: http://localhost:9000
+#      # Indicates if path style access should be used (optional, default is false)
+#      path_style_access: false
 #     cloudformation:
 #       # AWS access key (optional if aws.accessKey is specified)
 #       access_key:
@@ -143,7 +151,7 @@
 # studio.validation.regex.USERNAME: "^[a-zA-Z][\\w.\\-@+]+$"
 # studio.validation.regex.GROUP_NAME: "^[a-zA-Z][\\w.\\-]*$"
 # studio.validation.regex.ALPHANUMERIC: "^[a-zA-Z0-9]*$"
-# studio.validation.regex.SEARCH_KEYWORDS: "^[\\w\\s\\-\\\"\\.\\*\\/\\p{IsLatin}]*$"
+# studio.validation.regex.SEARCH_KEYWORDS: "^[\\w\\s\\-\\\"\\'\\.!@#$%&\\*\\/\\(\\)\\p{IsLatin}]*$"
 # studio.validation.regex.CONTENT_PATH_WRITE: "^/?([\\w\\- \\.]+/?)*(((crafter\\-level\\-descriptor\\.level)|([\\w\\- ]))+\\.[\\w]+)?$"
 # studio.validation.regex.CONTENT_PATH_READ: "^/?([\\w\\p{IsLatin}@$%^&{}\\[\\]()+\\-=,.:~'`]+(\\s*[\\w\\p{IsLatin}/@$%^&{}\\[\\]()+\\-=,.:~'`])*(/?))*$"
 # studio.validation.regex.CONFIGURATION_PATH: "^([a-z0-9\\-_/]+([.]*[a-z0-9\\-_])+)*(\\.[\w]+)?/?$"

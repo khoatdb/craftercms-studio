@@ -17,10 +17,12 @@
 package org.craftercms.studio.api.v2.service.site;
 
 import org.craftercms.commons.plugin.model.PluginDescriptor;
+import org.craftercms.studio.api.v1.exception.ServiceLayerException;
 import org.craftercms.studio.api.v1.exception.SiteAlreadyExistsException;
 import org.craftercms.studio.api.v1.exception.SiteNotFoundException;
 import org.craftercms.studio.api.v2.dal.PublishStatus;
 import org.craftercms.studio.api.v2.exception.InvalidParametersException;
+import org.craftercms.studio.api.v2.exception.InvalidSiteStateException;
 
 import java.util.List;
 
@@ -79,4 +81,28 @@ public interface SitesService {
      * @param siteId site identifier
      */
     void clearPublishingLock(String siteId) throws SiteNotFoundException;
+
+    /**
+     * Check if current site state is matches the given state
+     *
+     * @param siteId site id
+     * @param state  desired state
+     * @throws InvalidSiteStateException if the site state doesn't match the given state
+     * @throws SiteNotFoundException if the site doesn't exist
+     */
+    void checkSiteState(String siteId, String state) throws InvalidSiteStateException, SiteNotFoundException;
+
+    /**
+     * Duplicate a site
+     *
+     * @param sourceSiteId       the id of the site to duplicate
+     * @param siteId             the id of the new site
+     * @param siteName           the name of the new site
+     * @param description        the description of the new site
+     * @param sandboxBranch      the sandbox branch to use
+     * @param readOnlyBlobStores whether the blob stores should be read only
+     * @throws ServiceLayerException if there is an error duplicating the site
+     */
+    void duplicate(String sourceSiteId, String siteId, String siteName, String description, String sandboxBranch, boolean readOnlyBlobStores)
+            throws ServiceLayerException;
 }

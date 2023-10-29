@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Crafter Software Corporation. All Rights Reserved.
+ * Copyright (C) 2007-2023 Crafter Software Corporation. All Rights Reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as published by
@@ -215,6 +215,7 @@ public interface StudioConfiguration {
     String PREVIEW_DEFAULT_PREVIEW_DEPLOYER_URL = "studio.preview.defaultPreviewDeployerUrl";
     String PREVIEW_DEFAULT_CREATE_TARGET_URL = "studio.preview.createTargetUrl";
     String PREVIEW_DEFAULT_DELETE_TARGET_URL = "studio.preview.deleteTargetUrl";
+    String PREVIEW_DUPLICATE_TARGET_URL = "studio.preview.duplicateTargetUrl";
     String PREVIEW_REPLACE = "studio.preview.replace";
     String PREVIEW_DISABLE_DEPLOY_CRON = "studio.preview.disableDeployCron";
     String PREVIEW_TEMPLATE_NAME = "studio.preview.templateName";
@@ -306,6 +307,22 @@ public interface StudioConfiguration {
 
     // Cookies
     String STUDIO_COOKIE_USE_BASE_DOMAIN = "studio.cookie.useBaseDomain";
+
+    // Search
+    String SEARCH_PATH_FIELD_NAME = "studio.search.field.path";
+    String SEARCH_INTERNAL_NAME_FIELD_NAME = "studio.search.field.name";
+    String SEARCH_LAST_EDIT_FIELD_NAME = "studio.search.field.edit";
+    String SEARCH_LAST_EDITOR_FIELD_NAME = "studio.search.field.editor";
+    String SEARCH_SIZE_FIELD_NAME = "studio.search.field.size";
+    String SEARCH_MIME_TYPE_FIELD_NAME = "studio.search.field.mimeType";
+    String SEARCH_HIGHLIGHT_FIELDS = "studio.search.fields.highlight";
+    String SEARCH_SNIPPETS_SIZE = "studio.search.snippets.size";
+    String SEARCH_NUMBER_OF_SNIPPETS = "studio.search.snippets.number";
+    String SEARCH_DEFAULT_TYPE = "studio.search.default.type";
+    String SEARCH_KEYWORD_SPLIT_REGEX = "studio.search.keyword.split.regex";
+
+    // Blob
+    String BLOB_STORES_CONFIG_PATH = "studio.blob.config.path";
 
     void loadConfig();
 

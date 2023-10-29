@@ -47,6 +47,7 @@ import org.craftercms.studio.api.v2.repository.RepositoryChanges;
 import org.craftercms.studio.api.v2.repository.blob.StudioBlobStore;
 import org.craftercms.studio.api.v2.repository.blob.StudioBlobStoreResolver;
 import org.craftercms.studio.impl.v1.repository.git.GitContentRepository;
+import org.craftercms.studio.model.history.ItemVersion;
 import org.craftercms.studio.model.rest.content.DetailedItem;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.slf4j.Logger;
@@ -252,7 +253,7 @@ public class BlobAwareContentRepository implements ContentRepository,
             logger.debug("No blob store configuration found for site '{}', " +
                     "will write '{}' to the local repository", site, path);
             return localRepositoryV1.writeContent(site, path, content);
-        } catch (RepositoryLockedException e) {
+        } catch (RepositoryLockedException | ServiceLayerException e) {
             logger.error("Failed to write content to site '{}' path '{}'", site, path, e);
             throw e;
         } catch (Exception e) {
@@ -281,7 +282,7 @@ public class BlobAwareContentRepository implements ContentRepository,
     }
 
     @Override
-    public String deleteContent(String site, String path, String approver) {
+    public String deleteContent(String site, String path, String approver) throws ServiceLayerException {
         logger.debug("Delete content in site '{}' path '{}'", site, path);
         try {
             StudioBlobStore store = getBlobStore(site, path);
@@ -296,9 +297,11 @@ public class BlobAwareContentRepository implements ContentRepository,
             logger.debug("No blob store configuration found for site '{}', " +
                     "will delete '{}' in the local repository", site, path);
             return localRepositoryV1.deleteContent(site, path, approver);
+        } catch (ServiceLayerException ex) {
+            throw ex;
         } catch (Exception e) {
             logger.error("Failed to delete content in site '{}' path '{}'", site, path, e);
-            return null;
+            throw new ServiceLayerException(format("Failed to delete content in site '%s' path '%s'", site, path), e);
         }
     }
 
@@ -380,6 +383,28 @@ public class BlobAwareContentRepository implements ContentRepository,
             logger.error("Failed to get version history for site '{}' path '{}'", site, path, e);
             return null;
         }
+    }
+
+    @Override
+    public List<ItemVersion> getContentItemHistory(String site, String path) {
+        logger.debug("Get version history for site '{}' path '{}'", site, path);
+        try {
+            if (pointersExist(site, path)) {
+                StudioBlobStore store = getBlobStore(site, path);
+                if (store != null) {
+                    return localRepositoryV2.getContentItemHistory(site, getPointerPath(site, path));
+                }
+            }
+            return localRepositoryV2.getContentItemHistory(site, path);
+        } catch (Exception e) {
+            logger.error("Failed to get version history for site '{}' path '{}'", site, path, e);
+            return null;
+        }
+    }
+
+    @Override
+    public void duplicateSite(String sourceSiteId, String siteId, String sandboxBranch) throws IOException {
+        localRepositoryV2.duplicateSite(sourceSiteId, siteId, sandboxBranch);
     }
 
     @Override

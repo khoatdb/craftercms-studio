@@ -23,12 +23,22 @@
 		http://www.springframework.org/schema/security
 		http://www.springframework.org/schema/security/spring-security.xsd">
 
-    <bean id="logoutSuccessHandler"
-          class="org.springframework.security.web.authentication.logout.SimpleUrlLogoutSuccessHandler"/>
+    <bean class="org.craftercms.studio.config.OAuth2LoginConfig"/>
+
+    <bean id="customOidcUserService" class="org.craftercms.studio.impl.v2.security.authentication.oauth2.CustomOidcUserService">
+        <constructor-arg name="userServiceInternal" ref="userServiceInternal"/>
+    </bean>
+
+    <sec:http request-matcher="regex" pattern="\/(oauth2|login\/oauth2)\/.*" auto-config="true">
+        <sec:oauth2-login oidc-user-service-ref="customOidcUserService"/>
+    </sec:http>
 
     <sec:authentication-manager id="webAuthenticationManager">
         <sec:authentication-provider ref="dbAuthenticationProvider"/>
     </sec:authentication-manager>
+
+    <bean id="logoutSuccessHandler"
+          class="org.springframework.security.web.authentication.logout.SimpleUrlLogoutSuccessHandler"/>
 
     <sec:http
             pattern="/**"
@@ -56,5 +66,4 @@
         <sec:intercept-url pattern="/authType*" access="permitAll()"/>
         <sec:intercept-url pattern="/**" access="isAuthenticated()"/>
     </sec:http>
-
 </beans>

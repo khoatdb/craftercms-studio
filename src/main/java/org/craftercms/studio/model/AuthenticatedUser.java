@@ -17,6 +17,7 @@ package org.craftercms.studio.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.craftercms.studio.api.v2.dal.User;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
 /**
  Represents a {@link User} that has been authenticated.
@@ -41,6 +42,18 @@ public class AuthenticatedUser extends User {
         setExternallyManaged(user.isExternallyManaged());
         setTimezone(user.getTimezone());
         setLocale(user.getLocale());
+    }
+
+    public AuthenticatedUser(long id, OidcUser user) {
+        setId(id);
+        setUsername(user.getEmail());
+        setEmail(user.getEmail());
+        setFirstName(user.getGivenName());
+        setLastName(user.getFamilyName());
+        setEnabled(true);
+        setExternallyManaged(true);
+        setLocale(user.getLocale());
+        this.authenticationType = AuthenticationType.DB;
     }
 
     public AuthenticationType getAuthenticationType() {

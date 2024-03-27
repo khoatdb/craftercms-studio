@@ -29,8 +29,10 @@
         <constructor-arg name="userServiceInternal" ref="userServiceInternal"/>
     </bean>
 
+    <bean id="customAuthorizationRequestResolver" class="org.craftercms.studio.impl.v2.security.authentication.oauth2.CustomAuthorizationRequestResolver"/>
+
     <sec:http request-matcher="regex" pattern="\/(oauth2|login\/oauth2)\/.*" auto-config="true">
-        <sec:oauth2-login oidc-user-service-ref="customOidcUserService"/>
+        <sec:oauth2-login oidc-user-service-ref="customOidcUserService" authorization-request-resolver-ref="customAuthorizationRequestResolver"/>
     </sec:http>
 
     <sec:authentication-manager id="webAuthenticationManager">
